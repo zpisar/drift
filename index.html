@@ -33,7 +33,7 @@
             <p>One button. Two lanes. Survive as long as you can.</p>
             <button id="start-button" class="button" type="button">Start</button>
             <div id="countdown" class="countdown" aria-live="polite"></div>
-            <div class="hint">Space, click, or tap to switch lanes.</div>
+            <div class="hint">Press Space on desktop, or tap the playfield on touch devices.</div>
           </div>
 
           <div id="overlay-over" class="overlay">
@@ -54,11 +54,13 @@
           <div class="label">Top 5</div>
           <div class="scoreboard-sub">Best runs</div>
         </div>
+        <div id="scoreboard-status" class="scoreboard-status"></div>
         <ol id="scoreboard-list" class="scoreboard-list"></ol>
       </aside>
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
 </html>

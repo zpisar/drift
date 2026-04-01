@@ -72,6 +72,13 @@ button {
   opacity: 0.62;
 }
 
+.scoreboard-status {
+  min-height: 1.2rem;
+  margin-bottom: 10px;
+  font-size: 0.84rem;
+  opacity: 0.62;
+}
+
 .scoreboard-list {
   margin: 0;
   padding: 0;

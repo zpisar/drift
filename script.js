@@ -10,11 +10,15 @@ const saveScoreButton = document.getElementById('save-score-button');
 const restartButton = document.getElementById('restart-button');
 const countdownEl = document.getElementById('countdown');
 const playerNameEl = document.getElementById('player-name');
+const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
 const frame = document.querySelector('.game-frame');
 
 const STORAGE_KEY = 'drift-best-score';
-const LEADERBOARD_KEY = 'drift-leaderboard';
+const SUPABASE_URL = 'https://csswxdyrfvmjgcnygmrp.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_8aa4QwHmN_5IEGrZ0xkR6g_gMuPbsiF';
+const SCORE_TABLE = 'scores';
+const supabaseClient = createSupabaseClient();
 
 const state = {
   mode: 'start',
@@ -35,6 +39,18 @@ const state = {
 bestEl.textContent = state.best.toFixed(1);
 renderLeaderboard();
 positionPlayer();
+
+function createSupabaseClient() {
+  if (
+    !window.supabase ||
+    SUPABASE_URL === 'YOUR_SUPABASE_URL' ||
+    SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY'
+  ) {
+    return null;
+  }
+
+  return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
 
 function laneTop(laneIndex) {
   const rect = frame.getBoundingClientRect();
@@ -64,6 +80,8 @@ function resetGame() {
   state.countdown = 0;
   state.savedScore = false;
   countdownEl.textContent = '';
+  scoreboardStatusEl.textContent = supabaseClient ? '' : 'Configure Supabase to enable the shared leaderboard.';
+  saveScoreButton.disabled = false;
   obstaclesEl.innerHTML = '';
   scoreEl.textContent = '0.0';
   positionPlayer();
@@ -88,20 +106,6 @@ function gameOver() {
   playerNameEl.focus();
 }
 
-function loadLeaderboard() {
-  try {
-    const raw = localStorage.getItem(LEADERBOARD_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLeaderboard(entries) {
-  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries));
-}
-
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
     '&': '&amp;',
@@ -112,8 +116,31 @@ function escapeHtml(value) {
   })[char]);
 }
 
-function renderLeaderboard() {
-  const entries = loadLeaderboard().sort((a, b) => b.score - a.score);
+async function fetchLeaderboard() {
+  if (!supabaseClient) {
+    scoreboardStatusEl.textContent = 'Configure Supabase to enable the shared leaderboard.';
+    return [];
+  }
+
+  scoreboardStatusEl.textContent = 'Loading scores...';
+  const { data, error } = await supabaseClient
+    .from(SCORE_TABLE)
+    .select('name, score')
+    .order('score', { ascending: false })
+    .order('created_at', { ascending: true })
+    .limit(5);
+
+  if (error) {
+    scoreboardStatusEl.textContent = 'Could not load leaderboard.';
+    return [];
+  }
+
+  scoreboardStatusEl.textContent = '';
+  return data ?? [];
+}
+
+async function renderLeaderboard() {
+  const entries = await fetchLeaderboard();
   if (entries.length === 0) {
     scoreboardListEl.innerHTML = '<li class="score-row"><span class="score-name">No scores yet</span><span class="score-value">-</span></li>';
     return;
@@ -124,18 +151,41 @@ function renderLeaderboard() {
   )).join('');
 }
 
-function submitScore() {
+async function submitScore() {
   if (state.savedScore || state.mode !== 'gameover') {
-    return;
+    return true;
   }
 
   const name = playerNameEl.value.trim() || 'Player';
-  const entries = loadLeaderboard();
-  entries.push({ name, score: state.score });
-  entries.sort((a, b) => b.score - a.score);
-  saveLeaderboard(entries.slice(0, 5));
-  renderLeaderboard();
+  if (!supabaseClient) {
+    scoreboardStatusEl.textContent = 'Add Supabase credentials in script.js to save scores online.';
+    return false;
+  }
+
+  scoreboardStatusEl.textContent = 'Saving score...';
+  saveScoreButton.disabled = true;
+
+  const { error } = await supabaseClient.from(SCORE_TABLE).insert({
+    name,
+    score: Number(state.score.toFixed(1))
+  });
+
+  saveScoreButton.disabled = false;
+
+  if (error) {
+    scoreboardStatusEl.textContent = 'Could not save score.';
+    return false;
+  }
+
   state.savedScore = true;
+  playerNameEl.blur();
+  await renderLeaderboard();
+  scoreboardStatusEl.textContent = 'Score saved.';
+  return true;
+}
+
+function canControlGameplay() {
+  return state.mode === 'playing';
 }
 
 function toggleLane() {
@@ -251,11 +301,7 @@ function handleAction(event) {
     return;
   }
 
-  if (state.mode === 'start' || state.mode === 'gameover') {
-    return;
-  }
-
-  if (state.mode === 'countdown') {
+  if (!canControlGameplay()) {
     return;
   }
 
@@ -266,16 +312,27 @@ function handleAction(event) {
   toggleLane();
 }
 
-saveScoreButton.addEventListener('click', submitScore);
-restartButton.addEventListener('click', () => {
-  submitScore();
+saveScoreButton.addEventListener('click', async () => {
+  await submitScore();
+});
+restartButton.addEventListener('click', async () => {
+  await submitScore();
   startGame();
 });
 document.addEventListener('keydown', handleAction);
+frame.addEventListener('pointerdown', (event) => {
+  if (!canControlGameplay()) {
+    return;
+  }
+  if (event.target.closest('.overlay')) {
+    return;
+  }
+  toggleLane();
+});
 playerNameEl.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     event.preventDefault();
-    submitScore();
+    saveScoreButton.click();
   }
 });
 startButton.addEventListener('click', startGame);
