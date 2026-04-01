@@ -191,7 +191,7 @@ button {
 .hud-group-progression {
   margin-left: auto;
   display: grid;
-  grid-template-columns: repeat(4, auto);
+  grid-template-columns: repeat(5, auto);
   gap: 10px;
   text-align: right;
 }
