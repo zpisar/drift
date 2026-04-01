@@ -14,6 +14,7 @@ const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
 const feedbackEl = document.getElementById('feedback');
 const frame = document.querySelector('.game-frame');
+<<<<<<< ours
 const hudScrapEl = document.getElementById('hud-scrap');
 const hudShieldsEl = document.getElementById('hud-shields');
 const hudPerkEl = document.getElementById('hud-perk');
@@ -27,6 +28,21 @@ const DEFAULT_PROGRESS = Object.freeze({
   schemaVersion: PROGRESS_SCHEMA_VERSION,
   bestScore: 0
 });
+=======
+const upgradePointsEl = document.getElementById('upgrade-points');
+const focusLevelEl = document.getElementById('focus-level');
+const flowLevelEl = document.getElementById('flow-level');
+const shieldLevelEl = document.getElementById('shield-level');
+const buyFocusButton = document.getElementById('buy-focus');
+const buyFlowButton = document.getElementById('buy-flow');
+const buyShieldButton = document.getElementById('buy-shield');
+const upgradeStatusEl = document.getElementById('upgrade-status');
+
+const STORAGE_KEY = 'drift-best-score';
+const UPGRADE_KEY = 'drift-upgrades-v02';
+const UPGRADE_POINT_STEP = 12;
+const MAX_UPGRADE_LEVEL = 6;
+>>>>>>> theirs
 const SUPABASE_URL = 'https://csswxdyrfvmjgcnygmrp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_8aa4QwHmN_5IEGrZ0xkR6g_gMuPbsiF';
 const SCORE_TABLE = 'scores';
@@ -114,7 +130,9 @@ const state = {
   switchPulseTimeout: null,
   feedbackTimeout: null,
   scoreFlashTimeout: null,
-  goTimeout: null
+  goTimeout: null,
+  runShieldCharges: 0,
+  upgrades: loadUpgrades()
 };
 
 bestEl.textContent = state.best.toFixed(1);
@@ -149,6 +167,7 @@ function setMode(mode) {
   overlayOver.classList.toggle('is-visible', mode === 'gameover');
 }
 
+<<<<<<< ours
 function resetProgressionUi() {
   if (hudScrapEl) {
     hudScrapEl.textContent = '0';
@@ -165,6 +184,72 @@ function resetProgressionUi() {
   if (perkInfoCopyEl) {
     perkInfoCopyEl.textContent = 'No active perk this run.';
   }
+=======
+function loadUpgrades() {
+  const fallback = { points: 0, focus: 0, flow: 0, shield: 0 };
+  try {
+    const raw = localStorage.getItem(UPGRADE_KEY);
+    if (!raw) {
+      return fallback;
+    }
+    const parsed = JSON.parse(raw);
+    return sanitizeUpgrades(parsed);
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function sanitizeUpgrades(raw) {
+  return {
+    points: Math.max(0, Math.floor(Number(raw.points) || 0)),
+    focus: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.focus) || 0))),
+    flow: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.flow) || 0))),
+    shield: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.shield) || 0)))
+  };
+}
+
+function persistUpgrades() {
+  localStorage.setItem(UPGRADE_KEY, JSON.stringify(state.upgrades));
+}
+
+function upgradeCost(type) {
+  return 1 + state.upgrades[type];
+}
+
+function canPurchase(type) {
+  return state.upgrades[type] < MAX_UPGRADE_LEVEL && state.upgrades.points >= upgradeCost(type);
+}
+
+function renderUpgrades() {
+  if (!upgradePointsEl || !focusLevelEl || !flowLevelEl || !shieldLevelEl) {
+    return;
+  }
+  upgradePointsEl.textContent = String(state.upgrades.points);
+  focusLevelEl.textContent = `Lv ${state.upgrades.focus}`;
+  flowLevelEl.textContent = `Lv ${state.upgrades.flow}`;
+  shieldLevelEl.textContent = `Lv ${state.upgrades.shield}`;
+  buyFocusButton.disabled = !canPurchase('focus');
+  buyFlowButton.disabled = !canPurchase('flow');
+  buyShieldButton.disabled = !canPurchase('shield');
+  buyFocusButton.textContent = state.upgrades.focus >= MAX_UPGRADE_LEVEL ? 'Focus Maxed' : `Buy Focus (${upgradeCost('focus')})`;
+  buyFlowButton.textContent = state.upgrades.flow >= MAX_UPGRADE_LEVEL ? 'Flow Maxed' : `Buy Flow (${upgradeCost('flow')})`;
+  buyShieldButton.textContent = state.upgrades.shield >= MAX_UPGRADE_LEVEL ? 'Shield Maxed' : `Buy Shield (${upgradeCost('shield')})`;
+  if (upgradeStatusEl) {
+    upgradeStatusEl.textContent = state.mode === 'playing'
+      ? `Shields left this run: ${state.runShieldCharges}`
+      : `Earn 1 point every ${UPGRADE_POINT_STEP} score`;
+  }
+}
+
+function purchaseUpgrade(type) {
+  if (!canPurchase(type)) {
+    return;
+  }
+  state.upgrades.points -= upgradeCost(type);
+  state.upgrades[type] += 1;
+  persistUpgrades();
+  renderUpgrades();
+>>>>>>> theirs
 }
 
 function resetGame() {
@@ -179,6 +264,7 @@ function resetGame() {
   state.lastSpawnLane = null;
   state.countdown = 0;
   state.savedScore = false;
+  state.runShieldCharges = state.upgrades.shield;
   clearTimeout(state.switchPulseTimeout);
   clearTimeout(state.feedbackTimeout);
   clearTimeout(state.scoreFlashTimeout);
@@ -196,6 +282,7 @@ function resetGame() {
   obstaclesEl.innerHTML = '';
   scoreEl.textContent = '0.0';
   positionPlayer();
+  renderUpgrades();
 }
 
 function startGame() {
@@ -221,6 +308,14 @@ function gameOver() {
   }
   playerNameEl.value = '';
   playerNameEl.focus();
+  const earnedPoints = Math.max(0, Math.floor(state.score / UPGRADE_POINT_STEP));
+  if (earnedPoints > 0) {
+    state.upgrades.points += earnedPoints;
+    persistUpgrades();
+    renderUpgrades();
+    showFeedback(`+${earnedPoints} Upgrade Point${earnedPoints > 1 ? 's' : ''}`);
+  }
+  renderUpgrades();
 }
 
 function escapeHtml(value) {
@@ -458,10 +553,12 @@ function loop(timestamp) {
   const dt = Math.min((timestamp - state.lastTime) / 1000, 0.033);
   state.lastTime = timestamp;
 
-  state.score += dt;
+  const flowMultiplier = 1 + (state.upgrades.flow * 0.12);
+  state.score += dt * flowMultiplier;
   state.graceTime = Math.max(0, state.graceTime - dt);
-  state.speed = Math.min(500, 172 + state.score * 12.5);
-  state.spawnDelay = Math.max(0.28, 1.15 - state.score * 0.048);
+  const focusFactor = Math.max(0.6, 1 - (state.upgrades.focus * 0.08));
+  state.speed = Math.min(500, 172 + state.score * (12.5 * focusFactor));
+  state.spawnDelay = Math.max(0.28, 1.15 - state.score * (0.048 * focusFactor));
   state.spawnTimer += dt;
   scoreEl.textContent = state.score.toFixed(1);
 
@@ -489,6 +586,14 @@ function loop(timestamp) {
     // Collision: only end the run when an obstacle reaches the player in the same lane.
     const obstacleX = obstacle.x;
     if (state.graceTime <= 0 && obstacle.lane === state.lane && obstacleX <= playerX + 10 && obstacleX + 18 >= playerX - 10) {
+      if (state.runShieldCharges > 0) {
+        state.runShieldCharges -= 1;
+        obstacle.el.remove();
+        state.obstacles.splice(i, 1);
+        showFeedback(`Shield Block (${state.runShieldCharges} left)`);
+        renderUpgrades();
+        continue;
+      }
       gameOver();
       return;
     }
@@ -542,6 +647,9 @@ playerNameEl.addEventListener('keydown', (event) => {
   }
 });
 startButton.addEventListener('click', startGame);
+buyFocusButton.addEventListener('click', () => purchaseUpgrade('focus'));
+buyFlowButton.addEventListener('click', () => purchaseUpgrade('flow'));
+buyShieldButton.addEventListener('click', () => purchaseUpgrade('shield'));
 
 window.addEventListener('resize', () => {
   positionPlayer();
@@ -549,3 +657,5 @@ window.addEventListener('resize', () => {
     obstacle.el.style.top = `${laneTop(obstacle.lane)}px`;
   });
 });
+
+renderUpgrades();
