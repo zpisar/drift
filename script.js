@@ -62,6 +62,20 @@ const RUN_PERKS = [
     baseSpeedOffset: 12
   }
 ];
+const HEAVY_OBSTACLE_SCORE_THRESHOLD = 16;
+const HEAVY_OBSTACLE_MAX_WEIGHT = 0.3;
+const HEAVY_OBSTACLE_RECENT_WINDOW = 4;
+const HEAVY_OBSTACLE_RECENT_CAP = 1;
+const NORMAL_OBSTACLE_PROFILE = Object.freeze({
+  type: 'normal',
+  hitHalfWidth: 9,
+  speedMultiplier: 1
+});
+const HEAVY_OBSTACLE_PROFILE = Object.freeze({
+  type: 'heavy',
+  hitHalfWidth: 16,
+  speedMultiplier: 0.84
+});
 
 const SUPABASE_URL = 'https://csswxdyrfvmjgcnygmrp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_8aa4QwHmN_5IEGrZ0xkR6g_gMuPbsiF';
@@ -175,7 +189,8 @@ const state = {
   runPerkState: {
     perfectDodgeBonus: 0,
     baseSpeedOffset: 0
-  }
+  },
+  recentSpawnTypes: []
 };
 
 bestEl.textContent = state.best.toFixed(1);
@@ -335,6 +350,7 @@ function resetGame() {
   state.obstacles = [];
   state.graceTime = 0.9;
   state.lastSpawnLane = null;
+  state.recentSpawnTypes = [];
   state.countdown = 0;
   state.savedScore = false;
   applySelectedPerk();
@@ -534,7 +550,7 @@ function checkPerfectDodge(previousLane) {
     if (obstacle.lane !== previousLane || obstacle.perfectDodged) {
       return false;
     }
-    const obstacleFront = obstacle.x + 18;
+    const obstacleFront = obstacle.x + obstacle.hitHalfWidth;
     return obstacleFront >= playerX - dodgeWindow && obstacleFront <= playerX + dodgeWindow;
   });
 
@@ -566,8 +582,12 @@ function spawnObstacle() {
     return false;
   }
 
+  const profile = pickObstacleProfile();
   const obstacle = document.createElement('div');
   obstacle.className = 'obstacle is-entering';
+  if (profile.type === 'heavy') {
+    obstacle.classList.add('is-heavy', 'is-telegraph');
+  }
   const lane = pickLane();
   const y = laneTop(lane);
   obstacle.dataset.lane = String(lane);
@@ -579,9 +599,31 @@ function spawnObstacle() {
     lane,
     x: frameWidth + 20,
     age: 0,
-    perfectDodged: false
+    perfectDodged: false,
+    type: profile.type,
+    hitHalfWidth: profile.hitHalfWidth,
+    speedMultiplier: profile.speedMultiplier
   });
+  state.recentSpawnTypes.push(profile.type);
+  if (state.recentSpawnTypes.length > HEAVY_OBSTACLE_RECENT_WINDOW) {
+    state.recentSpawnTypes.shift();
+  }
   return true;
+}
+
+function pickObstacleProfile() {
+  if (state.score < HEAVY_OBSTACLE_SCORE_THRESHOLD) {
+    return NORMAL_OBSTACLE_PROFILE;
+  }
+
+  const heavyCount = state.recentSpawnTypes.filter((type) => type === HEAVY_OBSTACLE_PROFILE.type).length;
+  if (heavyCount >= HEAVY_OBSTACLE_RECENT_CAP) {
+    return NORMAL_OBSTACLE_PROFILE;
+  }
+
+  const thresholdProgress = state.score - HEAVY_OBSTACLE_SCORE_THRESHOLD;
+  const heavyWeight = Math.min(HEAVY_OBSTACLE_MAX_WEIGHT, 0.08 + thresholdProgress * 0.015);
+  return Math.random() < heavyWeight ? HEAVY_OBSTACLE_PROFILE : NORMAL_OBSTACLE_PROFILE;
 }
 
 function pickLane() {
@@ -665,14 +707,18 @@ function loop(timestamp) {
   for (let i = state.obstacles.length - 1; i >= 0; i -= 1) {
     const obstacle = state.obstacles[i];
     obstacle.age += dt;
-    obstacle.x -= state.speed * dt;
+    obstacle.x -= state.speed * obstacle.speedMultiplier * dt;
     obstacle.el.style.left = `${obstacle.x}px`;
     if (obstacle.age > 0.08) {
       obstacle.el.classList.remove('is-entering');
     }
+    if (obstacle.type === 'heavy' && obstacle.age > 0.22) {
+      obstacle.el.classList.remove('is-telegraph');
+    }
 
     const obstacleX = obstacle.x;
-    if (state.graceTime <= 0 && obstacle.lane === state.lane && obstacleX <= playerX + 10 && obstacleX + 18 >= playerX - 10) {
+    const collisionDistance = 10 + obstacle.hitHalfWidth;
+    if (state.graceTime <= 0 && obstacle.lane === state.lane && Math.abs(obstacleX - playerX) <= collisionDistance) {
       if (state.runShieldCharges > 0) {
         state.runShieldCharges -= 1;
         obstacle.el.remove();
