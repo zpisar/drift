@@ -433,6 +433,32 @@ button {
   line-height: 1.5;
 }
 
+.perk-choices {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.perk-choice {
+  width: 100%;
+  margin-top: 0;
+  border-radius: 12px;
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+}
+
+.perk-choice strong {
+  display: block;
+  font-size: 0.92rem;
+}
+
+.perk-choice span {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.82rem;
+  opacity: 0.74;
+}
+
 .countdown {
   min-height: 1.4em;
   margin-top: 14px;

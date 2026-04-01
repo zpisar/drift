@@ -14,21 +14,12 @@ const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
 const feedbackEl = document.getElementById('feedback');
 const frame = document.querySelector('.game-frame');
-<<<<<<< ours
 const hudScrapEl = document.getElementById('hud-scrap');
 const hudShieldsEl = document.getElementById('hud-shields');
 const hudPerkEl = document.getElementById('hud-perk');
 const runScrapEarnedEl = document.getElementById('run-scrap-earned');
 const perkInfoCopyEl = document.getElementById('perk-info-copy');
-
-const STORAGE_KEY = 'drift-best-score';
-const PROGRESS_STORAGE_KEY = 'drift-progress';
-const PROGRESS_SCHEMA_VERSION = 1;
-const DEFAULT_PROGRESS = Object.freeze({
-  schemaVersion: PROGRESS_SCHEMA_VERSION,
-  bestScore: 0
-});
-=======
+const perkChoicesEl = document.getElementById('perk-choices');
 const upgradePointsEl = document.getElementById('upgrade-points');
 const focusLevelEl = document.getElementById('focus-level');
 const flowLevelEl = document.getElementById('flow-level');
@@ -39,10 +30,39 @@ const buyShieldButton = document.getElementById('buy-shield');
 const upgradeStatusEl = document.getElementById('upgrade-status');
 
 const STORAGE_KEY = 'drift-best-score';
+const PROGRESS_STORAGE_KEY = 'drift-progress';
+const PROGRESS_SCHEMA_VERSION = 1;
 const UPGRADE_KEY = 'drift-upgrades-v02';
 const UPGRADE_POINT_STEP = 12;
 const MAX_UPGRADE_LEVEL = 6;
->>>>>>> theirs
+const DEFAULT_PROGRESS = Object.freeze({
+  schemaVersion: PROGRESS_SCHEMA_VERSION,
+  bestScore: 0
+});
+const RUN_PERKS = [
+  {
+    id: 'precision_drift',
+    name: 'Precision Drift',
+    description: 'Perfect dodges grant +1.0 bonus score this run.',
+    perfectDodgeBonus: 1,
+    baseSpeedOffset: 0
+  },
+  {
+    id: 'soft_launch',
+    name: 'Soft Launch',
+    description: 'Start the run with -26 base speed for readability.',
+    perfectDodgeBonus: 0,
+    baseSpeedOffset: -26
+  },
+  {
+    id: 'pulse_step',
+    name: 'Pulse Step',
+    description: 'Perfect dodges grant +0.6, but base speed is +12.',
+    perfectDodgeBonus: 0.6,
+    baseSpeedOffset: 12
+  }
+];
+
 const SUPABASE_URL = 'https://csswxdyrfvmjgcnygmrp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_8aa4QwHmN_5IEGrZ0xkR6g_gMuPbsiF';
 const SCORE_TABLE = 'scores';
@@ -99,15 +119,31 @@ function saveProgress(progress) {
   return nextProgress;
 }
 
-function resetProgress() {
-  const nextProgress = { ...DEFAULT_PROGRESS };
+function loadUpgrades() {
+  const fallback = { points: 0, focus: 0, flow: 0, shield: 0 };
   try {
-    localStorage.removeItem(PROGRESS_STORAGE_KEY);
-    localStorage.removeItem(STORAGE_KEY);
+    const raw = localStorage.getItem(UPGRADE_KEY);
+    if (!raw) {
+      return fallback;
+    }
+    const parsed = JSON.parse(raw);
+    return sanitizeUpgrades(parsed);
   } catch (error) {
-    // Ignore storage errors.
+    return fallback;
   }
-  return nextProgress;
+}
+
+function sanitizeUpgrades(raw) {
+  return {
+    points: Math.max(0, Math.floor(Number(raw.points) || 0)),
+    focus: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.focus) || 0))),
+    flow: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.flow) || 0))),
+    shield: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.shield) || 0)))
+  };
+}
+
+function persistUpgrades() {
+  localStorage.setItem(UPGRADE_KEY, JSON.stringify(state.upgrades));
 }
 
 const initialProgress = loadProgress();
@@ -132,13 +168,23 @@ const state = {
   scoreFlashTimeout: null,
   goTimeout: null,
   runShieldCharges: 0,
-  upgrades: loadUpgrades()
+  upgrades: loadUpgrades(),
+  perkChoices: [],
+  selectedPerkId: null,
+  activePerkId: null,
+  runPerkState: {
+    perfectDodgeBonus: 0,
+    baseSpeedOffset: 0
+  }
 };
 
 bestEl.textContent = state.best.toFixed(1);
 resetProgressionUi();
 renderLeaderboard();
 positionPlayer();
+renderUpgrades();
+rollPerkChoices();
+renderPerkChoices();
 
 function createSupabaseClient() {
   if (
@@ -167,7 +213,59 @@ function setMode(mode) {
   overlayOver.classList.toggle('is-visible', mode === 'gameover');
 }
 
-<<<<<<< ours
+function currentPerk() {
+  return RUN_PERKS.find((perk) => perk.id === state.activePerkId) ?? null;
+}
+
+function selectedPerk() {
+  return RUN_PERKS.find((perk) => perk.id === state.selectedPerkId) ?? null;
+}
+
+function applySelectedPerk() {
+  const perk = selectedPerk();
+  state.activePerkId = perk ? perk.id : null;
+  state.runPerkState = {
+    perfectDodgeBonus: perk ? perk.perfectDodgeBonus : 0,
+    baseSpeedOffset: perk ? perk.baseSpeedOffset : 0
+  };
+}
+
+function rollPerkChoices() {
+  const pool = [...RUN_PERKS];
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  state.perkChoices = pool.slice(0, 2);
+
+  if (!state.perkChoices.some((perk) => perk.id === state.selectedPerkId)) {
+    state.selectedPerkId = state.perkChoices[0]?.id ?? null;
+  }
+}
+
+function renderPerkChoices() {
+  if (!perkChoicesEl) {
+    return;
+  }
+
+  perkChoicesEl.innerHTML = '';
+  state.perkChoices.forEach((perk) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'button button-secondary perk-choice';
+    button.setAttribute('aria-pressed', String(perk.id === state.selectedPerkId));
+    button.innerHTML = `<strong>${perk.name}${perk.id === state.selectedPerkId ? ' (Selected)' : ''}</strong><span>${perk.description}</span>`;
+    button.addEventListener('click', () => {
+      state.selectedPerkId = perk.id;
+      renderPerkChoices();
+      if (perkInfoCopyEl) {
+        perkInfoCopyEl.textContent = `${perk.name} selected for the next run.`;
+      }
+    });
+    perkChoicesEl.appendChild(button);
+  });
+}
+
 function resetProgressionUi() {
   if (hudScrapEl) {
     hudScrapEl.textContent = '0';
@@ -176,40 +274,16 @@ function resetProgressionUi() {
     hudShieldsEl.textContent = '0';
   }
   if (hudPerkEl) {
-    hudPerkEl.textContent = 'None';
+    const perk = currentPerk();
+    hudPerkEl.textContent = perk ? perk.name : 'None';
   }
   if (runScrapEarnedEl) {
     runScrapEarnedEl.textContent = '0';
   }
   if (perkInfoCopyEl) {
-    perkInfoCopyEl.textContent = 'No active perk this run.';
+    const perk = currentPerk();
+    perkInfoCopyEl.textContent = perk ? `${perk.name} active this run.` : 'No active perk this run.';
   }
-=======
-function loadUpgrades() {
-  const fallback = { points: 0, focus: 0, flow: 0, shield: 0 };
-  try {
-    const raw = localStorage.getItem(UPGRADE_KEY);
-    if (!raw) {
-      return fallback;
-    }
-    const parsed = JSON.parse(raw);
-    return sanitizeUpgrades(parsed);
-  } catch (error) {
-    return fallback;
-  }
-}
-
-function sanitizeUpgrades(raw) {
-  return {
-    points: Math.max(0, Math.floor(Number(raw.points) || 0)),
-    focus: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.focus) || 0))),
-    flow: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.flow) || 0))),
-    shield: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.shield) || 0)))
-  };
-}
-
-function persistUpgrades() {
-  localStorage.setItem(UPGRADE_KEY, JSON.stringify(state.upgrades));
 }
 
 function upgradeCost(type) {
@@ -249,7 +323,6 @@ function purchaseUpgrade(type) {
   state.upgrades[type] += 1;
   persistUpgrades();
   renderUpgrades();
->>>>>>> theirs
 }
 
 function resetGame() {
@@ -264,6 +337,7 @@ function resetGame() {
   state.lastSpawnLane = null;
   state.countdown = 0;
   state.savedScore = false;
+  applySelectedPerk();
   state.runShieldCharges = state.upgrades.shield;
   clearTimeout(state.switchPulseTimeout);
   clearTimeout(state.feedbackTimeout);
@@ -278,10 +352,10 @@ function resetGame() {
   scoreEl.classList.remove('is-flashing');
   scoreboardStatusEl.textContent = supabaseClient ? '' : 'Configure Supabase to enable the shared leaderboard.';
   saveScoreButton.disabled = false;
-  resetProgressionUi();
   obstaclesEl.innerHTML = '';
   scoreEl.textContent = '0.0';
   positionPlayer();
+  resetProgressionUi();
   renderUpgrades();
 }
 
@@ -296,7 +370,7 @@ function gameOver() {
   setMode('gameover');
   finalScoreEl.textContent = state.score.toFixed(1);
   if (runScrapEarnedEl) {
-    runScrapEarnedEl.textContent = '0';
+    runScrapEarnedEl.textContent = String(Math.max(0, Math.floor(state.score / UPGRADE_POINT_STEP)));
   }
   if (state.score > state.best) {
     state.best = state.score;
@@ -315,6 +389,16 @@ function gameOver() {
     renderUpgrades();
     showFeedback(`+${earnedPoints} Upgrade Point${earnedPoints > 1 ? 's' : ''}`);
   }
+
+  rollPerkChoices();
+  renderPerkChoices();
+  const pendingPerk = selectedPerk();
+  if (perkInfoCopyEl) {
+    perkInfoCopyEl.textContent = pendingPerk
+      ? `${pendingPerk.name} selected for the next run.`
+      : 'Choose one perk for your next run.';
+  }
+
   renderUpgrades();
 }
 
@@ -432,11 +516,12 @@ function triggerNearMissFeedback() {
 }
 
 function awardPerfectDodge() {
-  state.score += 0.5;
+  const perfectDodgeBonus = 0.5 + state.runPerkState.perfectDodgeBonus;
+  state.score += perfectDodgeBonus;
   scoreEl.textContent = state.score.toFixed(1);
   flashScoreLabel();
   triggerNearMissFeedback();
-  showFeedback('Perfect Dodge +0.5');
+  showFeedback(`Perfect Dodge +${perfectDodgeBonus.toFixed(1)}`);
 }
 
 function checkPerfectDodge(previousLane) {
@@ -511,7 +596,6 @@ function pickLane() {
   return lane;
 }
 
-// Core loop: advance time, scale difficulty, move obstacles, and check collisions.
 function loop(timestamp) {
   if (state.mode === 'countdown') {
     if (!state.lastTime) {
@@ -557,10 +641,14 @@ function loop(timestamp) {
   state.score += dt * flowMultiplier;
   state.graceTime = Math.max(0, state.graceTime - dt);
   const focusFactor = Math.max(0.6, 1 - (state.upgrades.focus * 0.08));
-  state.speed = Math.min(500, 172 + state.score * (12.5 * focusFactor));
+  const perkSpeedOffset = state.runPerkState.baseSpeedOffset;
+  state.speed = Math.min(500, Math.max(90, 172 + perkSpeedOffset + state.score * (12.5 * focusFactor)));
   state.spawnDelay = Math.max(0.28, 1.15 - state.score * (0.048 * focusFactor));
   state.spawnTimer += dt;
   scoreEl.textContent = state.score.toFixed(1);
+  if (hudShieldsEl) {
+    hudShieldsEl.textContent = String(state.runShieldCharges);
+  }
 
   if (state.spawnTimer >= state.spawnDelay) {
     state.spawnTimer -= state.spawnDelay;
@@ -583,7 +671,6 @@ function loop(timestamp) {
       obstacle.el.classList.remove('is-entering');
     }
 
-    // Collision: only end the run when an obstacle reaches the player in the same lane.
     const obstacleX = obstacle.x;
     if (state.graceTime <= 0 && obstacle.lane === state.lane && obstacleX <= playerX + 10 && obstacleX + 18 >= playerX - 10) {
       if (state.runShieldCharges > 0) {
@@ -657,5 +744,3 @@ window.addEventListener('resize', () => {
     obstacle.el.style.top = `${laneTop(obstacle.lane)}px`;
   });
 });
-
-renderUpgrades();
