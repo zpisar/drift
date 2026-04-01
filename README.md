@@ -1,38 +1,35 @@
 # Drift
 
-Drift is a minimalist one-button browser game built with plain HTML, CSS, and vanilla JavaScript.
+Drift is a minimalist survival game about timing, focus, and staying in the right lane for as long as possible.
 
-## Play
+## How to Play
 
-- Press `Space`, click, or tap to switch between the two lanes.
-- Avoid obstacles for as long as possible.
-- Your score is survival time.
-- Your best score is saved in your browser.
+- Press `Space` to switch between the two lanes.
+- Stay out of the lane with the incoming obstacle.
+- Survive as long as you can to increase your score.
+- Enter your name after a run to try to place in the top 5.
 
-## Run locally
+## Features
 
-Open `index.html` in a browser, or serve the folder with any static server:
+- Minimal black-on-warm-white visual style
+- Fast one-button gameplay
+- Increasing speed and difficulty over time
+- Local best score saving
+- Local top-5 leaderboard
 
-```powershell
-python -m http.server 8000
-```
+## Play Online
 
-Then open `http://localhost:8000`.
+Play it in your browser through GitHub Pages:
 
-## Deploy
+[Drift on GitHub Pages](https://zpisar.github.io/drift/)
 
-This project is static and ready for GitHub Pages.
+## Local Play
 
-1. Push the repo to GitHub.
-2. In the repository settings, open `Pages`.
-3. Set the source to `Deploy from a branch`.
-4. Choose branch `main` and folder `/ (root)`.
+If you want to run it locally, open `index.html` in a browser.
 
-## Files
+## Notes
 
-- `index.html`
-- `style.css`
-- `script.js`
+Scores and leaderboard entries are stored in your browser with `localStorage`, so they stay on your device.
 
 ## License
 
