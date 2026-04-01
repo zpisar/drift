@@ -16,16 +16,87 @@ const feedbackEl = document.getElementById('feedback');
 const frame = document.querySelector('.game-frame');
 
 const STORAGE_KEY = 'drift-best-score';
+const PROGRESS_STORAGE_KEY = 'drift-progress';
+const PROGRESS_SCHEMA_VERSION = 1;
+const DEFAULT_PROGRESS = Object.freeze({
+  schemaVersion: PROGRESS_SCHEMA_VERSION,
+  bestScore: 0
+});
 const SUPABASE_URL = 'https://csswxdyrfvmjgcnygmrp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_8aa4QwHmN_5IEGrZ0xkR6g_gMuPbsiF';
 const SCORE_TABLE = 'scores';
 const supabaseClient = createSupabaseClient();
 
+function readLegacyBestScore() {
+  try {
+    const legacyBest = Number(localStorage.getItem(STORAGE_KEY));
+    return Number.isFinite(legacyBest) ? legacyBest : DEFAULT_PROGRESS.bestScore;
+  } catch (error) {
+    return DEFAULT_PROGRESS.bestScore;
+  }
+}
+
+function migrateProgress(rawProgress) {
+  const progress =
+    rawProgress && typeof rawProgress === 'object' && !Array.isArray(rawProgress)
+      ? rawProgress
+      : {};
+  const bestFromProgress = Number(progress.bestScore);
+  const bestScore = Number.isFinite(bestFromProgress)
+    ? bestFromProgress
+    : readLegacyBestScore();
+
+  return {
+    ...DEFAULT_PROGRESS,
+    schemaVersion: PROGRESS_SCHEMA_VERSION,
+    bestScore
+  };
+}
+
+function loadProgress() {
+  try {
+    const stored = localStorage.getItem(PROGRESS_STORAGE_KEY);
+    if (!stored) {
+      return migrateProgress(null);
+    }
+
+    const parsed = JSON.parse(stored);
+    return migrateProgress(parsed);
+  } catch (error) {
+    return migrateProgress(null);
+  }
+}
+
+function saveProgress(progress) {
+  const nextProgress = migrateProgress(progress);
+  try {
+    localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(nextProgress));
+    localStorage.setItem(STORAGE_KEY, String(nextProgress.bestScore));
+  } catch (error) {
+    // Ignore storage errors so gameplay can continue in restricted environments.
+  }
+  return nextProgress;
+}
+
+function resetProgress() {
+  const nextProgress = { ...DEFAULT_PROGRESS };
+  try {
+    localStorage.removeItem(PROGRESS_STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (error) {
+    // Ignore storage errors.
+  }
+  return nextProgress;
+}
+
+const initialProgress = loadProgress();
+
 const state = {
   mode: 'start',
   lane: 1,
   score: 0,
-  best: Number(localStorage.getItem(STORAGE_KEY)) || 0,
+  best: initialProgress.bestScore,
+  progress: initialProgress,
   lastTime: 0,
   spawnTimer: 0,
   spawnDelay: 1.05,
@@ -114,7 +185,10 @@ function gameOver() {
   finalScoreEl.textContent = state.score.toFixed(1);
   if (state.score > state.best) {
     state.best = state.score;
-    localStorage.setItem(STORAGE_KEY, String(state.best));
+    state.progress = saveProgress({
+      ...state.progress,
+      bestScore: state.best
+    });
     bestEl.textContent = state.best.toFixed(1);
   }
   playerNameEl.value = '';
