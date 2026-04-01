@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f4ed">
+  <title>Drift</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hud" aria-label="Game status">
+      <div>
+        <div class="label">Score</div>
+        <div id="score" class="value">0.0</div>
+      </div>
+      <div class="hud-right">
+        <div class="label">Best</div>
+        <div id="best" class="value">0.0</div>
+      </div>
+    </section>
+
+    <section class="game-frame" aria-label="Drift game">
+      <div class="lane lane-top" aria-hidden="true"></div>
+      <div class="lane lane-bottom" aria-hidden="true"></div>
+      <div id="player" class="player" aria-hidden="true"></div>
+      <div id="obstacles" class="obstacles" aria-hidden="true"></div>
+
+      <div id="overlay-start" class="overlay is-visible">
+        <h1>Drift</h1>
+        <p>One button. Two lanes. Survive as long as you can.</p>
+        <button id="start-button" class="button" type="button">Start</button>
+        <div class="hint">Space, click, or tap to switch lanes.</div>
+      </div>
+
+      <div id="overlay-over" class="overlay">
+        <h2>Game Over</h2>
+        <p>Your run ended at <span id="final-score">0.0</span>.</p>
+        <button id="restart-button" class="button" type="button">Restart</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
