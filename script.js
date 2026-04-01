@@ -18,6 +18,7 @@ const hudScrapEl = document.getElementById('hud-scrap');
 const hudShieldsEl = document.getElementById('hud-shields');
 const hudPerkEl = document.getElementById('hud-perk');
 const runScrapEarnedEl = document.getElementById('run-scrap-earned');
+const hudEventEl = document.getElementById('hud-event');
 const perkInfoCopyEl = document.getElementById('perk-info-copy');
 const perkChoicesEl = document.getElementById('perk-choices');
 const upgradePointsEl = document.getElementById('upgrade-points');
@@ -33,8 +34,16 @@ const STORAGE_KEY = 'drift-best-score';
 const PROGRESS_STORAGE_KEY = 'drift-progress';
 const PROGRESS_SCHEMA_VERSION = 1;
 const UPGRADE_KEY = 'drift-upgrades-v02';
-const UPGRADE_POINT_STEP = 12;
+const UPGRADE_POINT_STEP = 8;
 const MAX_UPGRADE_LEVEL = 6;
+const BASE_SPEED = 156;
+const MIN_SPEED = 96;
+const MAX_SPEED = 420;
+const BASE_SPAWN_DELAY = 1.2;
+const MIN_SPAWN_DELAY = 0.34;
+const INTENSITY_WINDOW = 14;
+const BURST_COOLDOWN = 5.5;
+const MAX_BURST_CHAIN = 1;
 const DEFAULT_PROGRESS = Object.freeze({
   schemaVersion: PROGRESS_SCHEMA_VERSION,
   bestScore: 0
@@ -190,7 +199,9 @@ const state = {
     perfectDodgeBonus: 0,
     baseSpeedOffset: 0
   },
-  recentSpawnTypes: []
+  recentSpawnTypes: [],
+  eventLabel: 'Warmup',
+  burstCooldown: BURST_COOLDOWN
 };
 
 bestEl.textContent = state.best.toFixed(1);
@@ -282,6 +293,9 @@ function renderPerkChoices() {
 }
 
 function resetProgressionUi() {
+  if (hudEventEl) {
+    hudEventEl.textContent = state.eventLabel;
+  }
   if (hudScrapEl) {
     hudScrapEl.textContent = '0';
   }
@@ -345,14 +359,16 @@ function resetGame() {
   state.score = 0;
   state.lastTime = 0;
   state.spawnTimer = 0;
-  state.spawnDelay = 1.05;
-  state.speed = 180;
+  state.spawnDelay = BASE_SPAWN_DELAY;
+  state.speed = BASE_SPEED;
   state.obstacles = [];
   state.graceTime = 0.9;
   state.lastSpawnLane = null;
   state.recentSpawnTypes = [];
   state.countdown = 0;
   state.savedScore = false;
+  state.eventLabel = 'Warmup';
+  state.burstCooldown = BURST_COOLDOWN;
   applySelectedPerk();
   state.runShieldCharges = state.upgrades.shield;
   clearTimeout(state.switchPulseTimeout);
@@ -370,6 +386,9 @@ function resetGame() {
   saveScoreButton.disabled = false;
   obstaclesEl.innerHTML = '';
   scoreEl.textContent = '0.0';
+  if (hudScrapEl) {
+    hudScrapEl.textContent = '0';
+  }
   positionPlayer();
   resetProgressionUi();
   renderUpgrades();
@@ -397,7 +416,7 @@ function gameOver() {
     bestEl.textContent = state.best.toFixed(1);
   }
   playerNameEl.value = '';
-  playerNameEl.focus();
+  window.setTimeout(() => playerNameEl.focus(), 80);
   const earnedPoints = Math.max(0, Math.floor(state.score / UPGRADE_POINT_STEP));
   if (earnedPoints > 0) {
     state.upgrades.points += earnedPoints;
@@ -632,10 +651,20 @@ function pickLane() {
     return state.lastSpawnLane;
   }
 
-  const sameLaneChance = state.score < 8 ? 0.35 : 0.5;
+  const sameLaneChance = state.score < 10 ? 0.36 : 0.44;
   const lane = Math.random() < sameLaneChance ? state.lastSpawnLane : (state.lastSpawnLane === 0 ? 1 : 0);
   state.lastSpawnLane = lane;
   return lane;
+}
+
+function currentIntensityState() {
+  if (state.score < 18) {
+    return { label: 'Warmup', speedGain: 8.6, spawnGain: 0.032 };
+  }
+  if (state.score < 42) {
+    return { label: 'Cruise', speedGain: 10.6, spawnGain: 0.041 };
+  }
+  return { label: 'Overdrive', speedGain: 12.4, spawnGain: 0.047 };
 }
 
 function loop(timestamp) {
@@ -684,19 +713,44 @@ function loop(timestamp) {
   state.graceTime = Math.max(0, state.graceTime - dt);
   const focusFactor = Math.max(0.6, 1 - (state.upgrades.focus * 0.08));
   const perkSpeedOffset = state.runPerkState.baseSpeedOffset;
-  state.speed = Math.min(500, Math.max(90, 172 + perkSpeedOffset + state.score * (12.5 * focusFactor)));
-  state.spawnDelay = Math.max(0.28, 1.15 - state.score * (0.048 * focusFactor));
+  const intensity = currentIntensityState();
+  state.eventLabel = intensity.label;
+  state.speed = Math.min(
+    MAX_SPEED,
+    Math.max(MIN_SPEED, BASE_SPEED + perkSpeedOffset + state.score * (intensity.speedGain * focusFactor))
+  );
+  state.spawnDelay = Math.max(
+    MIN_SPAWN_DELAY,
+    BASE_SPAWN_DELAY - state.score * (intensity.spawnGain * focusFactor)
+  );
   state.spawnTimer += dt;
+  state.burstCooldown = Math.max(0, state.burstCooldown - dt);
   scoreEl.textContent = state.score.toFixed(1);
+  if (hudScrapEl) {
+    hudScrapEl.textContent = String(Math.floor(state.score / UPGRADE_POINT_STEP));
+  }
   if (hudShieldsEl) {
     hudShieldsEl.textContent = String(state.runShieldCharges);
+  }
+  if (hudEventEl) {
+    hudEventEl.textContent = state.eventLabel;
   }
 
   if (state.spawnTimer >= state.spawnDelay) {
     state.spawnTimer -= state.spawnDelay;
     const spawned = spawnObstacle();
-    if (spawned && state.score > 8 && Math.random() < Math.min(0.4, 0.1 + state.score * 0.01)) {
-      state.spawnTimer -= state.spawnDelay * 0.3;
+    if (
+      spawned &&
+      state.score > INTENSITY_WINDOW &&
+      state.burstCooldown <= 0 &&
+      Math.random() < Math.min(0.2, 0.04 + state.score * 0.003)
+    ) {
+      state.burstCooldown = BURST_COOLDOWN;
+      state.eventLabel = 'Pulse';
+      if (hudEventEl) {
+        hudEventEl.textContent = state.eventLabel;
+      }
+      state.spawnTimer += state.spawnDelay * (0.24 * MAX_BURST_CHAIN);
     }
   }
 
@@ -760,10 +814,23 @@ saveScoreButton.addEventListener('click', async () => {
   await submitScore();
 });
 restartButton.addEventListener('click', async () => {
-  await submitScore();
+  submitScore();
   startGame();
 });
 document.addEventListener('keydown', handleAction);
+document.addEventListener('keydown', async (event) => {
+  if (state.mode === 'gameover' && event.code === 'Enter') {
+    event.preventDefault();
+    submitScore();
+    startGame();
+  }
+  if ((state.mode === 'start' || state.mode === 'countdown') && event.code === 'Space') {
+    event.preventDefault();
+    if (state.mode === 'start') {
+      startGame();
+    }
+  }
+});
 frame.addEventListener('pointerdown', (event) => {
   if (!canControlGameplay()) {
     return;
