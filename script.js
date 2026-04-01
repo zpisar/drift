@@ -14,18 +14,124 @@ const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
 const feedbackEl = document.getElementById('feedback');
 const frame = document.querySelector('.game-frame');
+const hudScrapEl = document.getElementById('hud-scrap');
+const hudShieldsEl = document.getElementById('hud-shields');
+const hudPerkEl = document.getElementById('hud-perk');
+const runScrapEarnedEl = document.getElementById('run-scrap-earned');
+const perkInfoCopyEl = document.getElementById('perk-info-copy');
 
 const STORAGE_KEY = 'drift-best-score';
+const PROGRESS_STORAGE_KEY = 'drift-progress';
+const PROGRESS_SCHEMA_VERSION = 1;
+const DEFAULT_PROGRESS = Object.freeze({
+  schemaVersion: PROGRESS_SCHEMA_VERSION,
+  bestScore: 0
+});
 const SUPABASE_URL = 'https://csswxdyrfvmjgcnygmrp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_8aa4QwHmN_5IEGrZ0xkR6g_gMuPbsiF';
 const SCORE_TABLE = 'scores';
 const supabaseClient = createSupabaseClient();
 
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+function readLegacyBestScore() {
+  try {
+    const legacyBest = Number(localStorage.getItem(STORAGE_KEY));
+    return Number.isFinite(legacyBest) ? legacyBest : DEFAULT_PROGRESS.bestScore;
+  } catch (error) {
+    return DEFAULT_PROGRESS.bestScore;
+  }
+}
+
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+function migrateProgress(rawProgress) {
+  const progress =
+    rawProgress && typeof rawProgress === 'object' && !Array.isArray(rawProgress)
+      ? rawProgress
+      : {};
+<<<<<<< ours
+<<<<<<< ours
+  const legacyBest = Number(localStorage.getItem(STORAGE_KEY));
+  const bestFromProgress = Number(progress.bestScore);
+  const bestScore = Number.isFinite(bestFromProgress)
+    ? bestFromProgress
+    : (Number.isFinite(legacyBest) ? legacyBest : DEFAULT_PROGRESS.bestScore);
+=======
+=======
+>>>>>>> theirs
+  const bestFromProgress = Number(progress.bestScore);
+  const bestScore = Number.isFinite(bestFromProgress)
+    ? bestFromProgress
+    : readLegacyBestScore();
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+
+  return {
+    ...DEFAULT_PROGRESS,
+    schemaVersion: PROGRESS_SCHEMA_VERSION,
+    bestScore
+  };
+}
+
+function loadProgress() {
+  try {
+    const stored = localStorage.getItem(PROGRESS_STORAGE_KEY);
+    if (!stored) {
+      return migrateProgress(null);
+    }
+
+    const parsed = JSON.parse(stored);
+    return migrateProgress(parsed);
+  } catch (error) {
+    return migrateProgress(null);
+  }
+}
+
+function saveProgress(progress) {
+  const nextProgress = migrateProgress(progress);
+  try {
+    localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(nextProgress));
+    localStorage.setItem(STORAGE_KEY, String(nextProgress.bestScore));
+  } catch (error) {
+    // Ignore storage errors so gameplay can continue in restricted environments.
+  }
+  return nextProgress;
+}
+
+function resetProgress() {
+  const nextProgress = { ...DEFAULT_PROGRESS };
+  try {
+    localStorage.removeItem(PROGRESS_STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (error) {
+    // Ignore storage errors.
+  }
+  return nextProgress;
+}
+
+const initialProgress = loadProgress();
+<<<<<<< ours
+<<<<<<< ours
+saveProgress(initialProgress);
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
+
 const state = {
   mode: 'start',
   lane: 1,
   score: 0,
-  best: Number(localStorage.getItem(STORAGE_KEY)) || 0,
+  best: initialProgress.bestScore,
+  progress: initialProgress,
   lastTime: 0,
   spawnTimer: 0,
   spawnDelay: 1.05,
@@ -42,6 +148,7 @@ const state = {
 };
 
 bestEl.textContent = state.best.toFixed(1);
+resetProgressionUi();
 renderLeaderboard();
 positionPlayer();
 
@@ -72,6 +179,24 @@ function setMode(mode) {
   overlayOver.classList.toggle('is-visible', mode === 'gameover');
 }
 
+function resetProgressionUi() {
+  if (hudScrapEl) {
+    hudScrapEl.textContent = '0';
+  }
+  if (hudShieldsEl) {
+    hudShieldsEl.textContent = '0';
+  }
+  if (hudPerkEl) {
+    hudPerkEl.textContent = 'None';
+  }
+  if (runScrapEarnedEl) {
+    runScrapEarnedEl.textContent = '0';
+  }
+  if (perkInfoCopyEl) {
+    perkInfoCopyEl.textContent = 'No active perk this run.';
+  }
+}
+
 function resetGame() {
   state.lane = 1;
   state.score = 0;
@@ -97,6 +222,7 @@ function resetGame() {
   scoreEl.classList.remove('is-flashing');
   scoreboardStatusEl.textContent = supabaseClient ? '' : 'Configure Supabase to enable the shared leaderboard.';
   saveScoreButton.disabled = false;
+  resetProgressionUi();
   obstaclesEl.innerHTML = '';
   scoreEl.textContent = '0.0';
   positionPlayer();
@@ -112,9 +238,15 @@ function startGame() {
 function gameOver() {
   setMode('gameover');
   finalScoreEl.textContent = state.score.toFixed(1);
+  if (runScrapEarnedEl) {
+    runScrapEarnedEl.textContent = '0';
+  }
   if (state.score > state.best) {
     state.best = state.score;
-    localStorage.setItem(STORAGE_KEY, String(state.best));
+    state.progress = saveProgress({
+      ...state.progress,
+      bestScore: state.best
+    });
     bestEl.textContent = state.best.toFixed(1);
   }
   playerNameEl.value = '';
