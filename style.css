@@ -87,6 +87,70 @@ button {
   gap: 10px;
 }
 
+.upgrades {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(21, 21, 21, 0.1);
+}
+
+.upgrades-head {
+  margin-bottom: 8px;
+}
+
+.upgrade-points {
+  font-size: 0.86rem;
+  opacity: 0.74;
+  margin-bottom: 10px;
+}
+
+.upgrade-list {
+  display: grid;
+  gap: 10px;
+}
+
+.upgrade-item {
+  border: 1px solid rgba(21, 21, 21, 0.1);
+  border-radius: 14px;
+  padding: 10px 10px 12px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.upgrade-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.upgrade-level {
+  font-size: 0.82rem;
+  opacity: 0.68;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.upgrade-item p {
+  margin: 8px 0 10px;
+  font-size: 0.84rem;
+  opacity: 0.7;
+  line-height: 1.45;
+}
+
+.upgrade-button {
+  margin-top: 0;
+  min-width: 0;
+  width: 100%;
+  border-radius: 12px;
+  padding: 0.55rem 0.75rem;
+}
+
+.upgrade-status {
+  min-height: 1.2rem;
+  margin-top: 10px;
+  font-size: 0.82rem;
+  opacity: 0.68;
+}
+
 .score-row {
   display: flex;
   justify-content: space-between;
