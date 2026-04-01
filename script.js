@@ -14,11 +14,15 @@ const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
 const feedbackEl = document.getElementById('feedback');
 const frame = document.querySelector('.game-frame');
+<<<<<<< ours
 const hudScrapEl = document.getElementById('hud-scrap');
 const hudShieldsEl = document.getElementById('hud-shields');
 const hudPerkEl = document.getElementById('hud-perk');
 const runScrapEarnedEl = document.getElementById('run-scrap-earned');
 const perkInfoCopyEl = document.getElementById('perk-info-copy');
+=======
+const perkOptionsEl = document.getElementById('perk-options');
+>>>>>>> theirs
 
 const STORAGE_KEY = 'drift-best-score';
 const PROGRESS_STORAGE_KEY = 'drift-progress';
@@ -31,6 +35,11 @@ const SUPABASE_URL = 'https://csswxdyrfvmjgcnygmrp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_8aa4QwHmN_5IEGrZ0xkR6g_gMuPbsiF';
 const SCORE_TABLE = 'scores';
 const supabaseClient = createSupabaseClient();
+const PERKS = [
+  { id: 'buffer', name: 'Buffer', description: '+0.35s starting grace', apply: (s) => { s.graceTime += 0.35; } },
+  { id: 'calm', name: 'Calm Start', description: '-18 speed this run', apply: (s) => { s.baseSpeedOffset -= 18; } },
+  { id: 'precision', name: 'Precision', description: 'Perfect Dodge +0.8', apply: (s) => { s.perfectDodgeBonus = 0.8; } }
+];
 
 function readLegacyBestScore() {
   try {
@@ -114,13 +123,18 @@ const state = {
   switchPulseTimeout: null,
   feedbackTimeout: null,
   scoreFlashTimeout: null,
-  goTimeout: null
+  goTimeout: null,
+  selectedPerkId: 'buffer',
+  activePerkId: null,
+  perfectDodgeBonus: 0.5,
+  baseSpeedOffset: 0
 };
 
 bestEl.textContent = state.best.toFixed(1);
 resetProgressionUi();
 renderLeaderboard();
 positionPlayer();
+renderPerkOptions();
 
 function createSupabaseClient() {
   if (
@@ -179,6 +193,9 @@ function resetGame() {
   state.lastSpawnLane = null;
   state.countdown = 0;
   state.savedScore = false;
+  state.activePerkId = null;
+  state.perfectDodgeBonus = 0.5;
+  state.baseSpeedOffset = 0;
   clearTimeout(state.switchPulseTimeout);
   clearTimeout(state.feedbackTimeout);
   clearTimeout(state.scoreFlashTimeout);
@@ -200,9 +217,39 @@ function resetGame() {
 
 function startGame() {
   resetGame();
+  applySelectedPerk();
   state.countdown = 3;
   setMode('countdown');
   requestAnimationFrame(loop);
+}
+
+function renderPerkOptions() {
+  if (!perkOptionsEl) {
+    return;
+  }
+  perkOptionsEl.innerHTML = PERKS.map((perk) => (
+    `<button class="perk-option${state.selectedPerkId === perk.id ? ' is-selected' : ''}" type="button" data-perk-id="${perk.id}" role="radio" aria-checked="${state.selectedPerkId === perk.id}">
+      <span class="perk-name">${perk.name}</span>
+      <span class="perk-desc">${perk.description}</span>
+    </button>`
+  )).join('');
+}
+
+function selectPerk(perkId) {
+  if (!PERKS.some((perk) => perk.id === perkId)) {
+    return;
+  }
+  state.selectedPerkId = perkId;
+  renderPerkOptions();
+}
+
+function applySelectedPerk() {
+  const perk = PERKS.find((entry) => entry.id === state.selectedPerkId);
+  if (!perk) {
+    return;
+  }
+  state.activePerkId = perk.id;
+  perk.apply(state);
 }
 
 function gameOver() {
@@ -337,11 +384,11 @@ function triggerNearMissFeedback() {
 }
 
 function awardPerfectDodge() {
-  state.score += 0.5;
+  state.score += state.perfectDodgeBonus;
   scoreEl.textContent = state.score.toFixed(1);
   flashScoreLabel();
   triggerNearMissFeedback();
-  showFeedback('Perfect Dodge +0.5');
+  showFeedback(`Perfect Dodge +${state.perfectDodgeBonus.toFixed(1)}`);
 }
 
 function checkPerfectDodge(previousLane) {
@@ -460,7 +507,7 @@ function loop(timestamp) {
 
   state.score += dt;
   state.graceTime = Math.max(0, state.graceTime - dt);
-  state.speed = Math.min(500, 172 + state.score * 12.5);
+  state.speed = Math.min(500, 172 + state.score * 12.5 + state.baseSpeedOffset);
   state.spawnDelay = Math.max(0.28, 1.15 - state.score * 0.048);
   state.spawnTimer += dt;
   scoreEl.textContent = state.score.toFixed(1);
@@ -542,6 +589,13 @@ playerNameEl.addEventListener('keydown', (event) => {
   }
 });
 startButton.addEventListener('click', startGame);
+perkOptionsEl?.addEventListener('click', (event) => {
+  const option = event.target.closest('[data-perk-id]');
+  if (!option) {
+    return;
+  }
+  selectPerk(option.dataset.perkId);
+});
 
 window.addEventListener('resize', () => {
   positionPlayer();

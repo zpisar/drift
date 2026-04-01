@@ -14,6 +14,7 @@ Drift is a minimalist survival game about timing, focus, and staying in the righ
 - Minimal black-on-warm-white visual style
 - Fast one-button gameplay
 - Increasing speed and difficulty over time
+- Run-only perk selection before each attempt
 - Local best score saving
 - Local top-5 leaderboard
 

@@ -294,6 +294,54 @@ button {
   margin-bottom: 4px;
 }
 
+.perk-picker {
+  margin-top: 16px;
+  width: min(100%, 32rem);
+  display: grid;
+  gap: 10px;
+}
+
+.perk-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.perk-option {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--ink);
+  padding: 0.6rem 0.7rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+}
+
+.perk-option:hover {
+  transform: translateY(-1px);
+}
+
+.perk-option.is-selected {
+  border-color: var(--ink);
+  background: rgba(21, 21, 21, 0.08);
+}
+
+.perk-name {
+  display: block;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.perk-desc {
+  margin-top: 4px;
+  display: block;
+  font-size: 0.78rem;
+  opacity: 0.7;
+}
+
 .button {
   margin-top: 22px;
   border: 1px solid var(--ink);
@@ -460,5 +508,9 @@ button {
 
   .overlay {
     padding: 22px 20px 26px;
+  }
+
+  .perk-options {
+    grid-template-columns: 1fr;
   }
 }
