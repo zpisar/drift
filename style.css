@@ -30,9 +30,74 @@ button {
 }
 
 .shell {
-  width: min(920px, 100%);
+  width: min(1120px, 100%);
+  display: grid;
+  place-items: center;
+}
+
+.layout {
+  display: grid;
+  width: 100%;
+  max-width: 860px;
+  grid-template-columns: 1fr;
+  gap: 22px;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-column {
   display: grid;
   gap: 18px;
+  width: 100%;
+}
+
+.scoreboard {
+  width: min(520px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 12px 30px rgba(21, 21, 21, 0.04);
+  justify-self: center;
+}
+
+.scoreboard-head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.scoreboard-sub {
+  font-size: 0.88rem;
+  opacity: 0.62;
+}
+
+.scoreboard-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(21, 21, 21, 0.08);
+}
+
+.score-row:last-child {
+  border-bottom: 0;
+}
+
+.score-name {
+  font-weight: 600;
+}
+
+.score-value {
+  opacity: 0.72;
 }
 
 .hud {
@@ -59,8 +124,8 @@ button {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  min-height: 320px;
-  max-height: 72vh;
+  min-height: 420px;
+  max-height: 78vh;
   border: 1px solid var(--line);
   border-radius: 28px;
   overflow: hidden;
@@ -114,20 +179,24 @@ button {
 .overlay {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  padding: 32px;
+  padding: 30px 28px 34px;
   background: rgba(247, 244, 237, 0.74);
   backdrop-filter: blur(1px);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 180ms ease;
+  transition: opacity 220ms ease, transform 220ms ease;
+  transform: translateY(8px);
 }
 
 .overlay.is-visible {
   opacity: 1;
   pointer-events: auto;
+  transform: translateY(0);
 }
 
 .overlay h1,
@@ -143,6 +212,10 @@ button {
   font-size: 1rem;
   line-height: 1.6;
   opacity: 0.78;
+}
+
+.overlay h2 + p {
+  margin-bottom: 4px;
 }
 
 .button {
@@ -166,6 +239,62 @@ button {
   opacity: 0.92;
 }
 
+.button-secondary {
+  background: transparent;
+  color: var(--ink);
+  margin-top: 10px;
+}
+
+#overlay-over {
+  gap: 10px;
+  justify-content: flex-start;
+  padding-top: 34px;
+  padding-bottom: 24px;
+}
+
+.countdown {
+  min-height: 1.4em;
+  margin-top: 14px;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.name-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  width: min(100%, 18rem);
+  text-align: left;
+}
+
+.name-field span {
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.name-field input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--ink);
+  padding: 0.85rem 1rem;
+  outline: none;
+}
+
+.name-field input:focus {
+  border-color: rgba(21, 21, 21, 0.38);
+}
+
+.name-field input:focus-visible {
+  outline: 2px solid rgba(21, 21, 21, 0.12);
+  outline-offset: 2px;
+}
+
 .hint {
   margin-top: 14px;
   font-size: 0.88rem;
@@ -183,11 +312,11 @@ button {
 
   .game-frame {
     aspect-ratio: auto;
-    min-height: 68vh;
+    min-height: 72vh;
     border-radius: 22px;
   }
 
   .overlay {
-    padding: 24px;
+    padding: 22px 20px 26px;
   }
 }
