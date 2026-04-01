@@ -12,6 +12,7 @@ const countdownEl = document.getElementById('countdown');
 const playerNameEl = document.getElementById('player-name');
 const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
+const feedbackEl = document.getElementById('feedback');
 const frame = document.querySelector('.game-frame');
 
 const STORAGE_KEY = 'drift-best-score';
@@ -33,7 +34,11 @@ const state = {
   graceTime: 0.9,
   lastSpawnLane: null,
   countdown: 0,
-  savedScore: false
+  savedScore: false,
+  switchPulseTimeout: null,
+  feedbackTimeout: null,
+  scoreFlashTimeout: null,
+  goTimeout: null
 };
 
 bestEl.textContent = state.best.toFixed(1);
@@ -79,7 +84,17 @@ function resetGame() {
   state.lastSpawnLane = null;
   state.countdown = 0;
   state.savedScore = false;
+  clearTimeout(state.switchPulseTimeout);
+  clearTimeout(state.feedbackTimeout);
+  clearTimeout(state.scoreFlashTimeout);
+  clearTimeout(state.goTimeout);
+  playerEl.classList.remove('is-switching');
+  playerEl.classList.remove('is-near-miss');
   countdownEl.textContent = '';
+  countdownEl.classList.remove('is-go');
+  feedbackEl.textContent = '';
+  feedbackEl.classList.remove('is-visible');
+  scoreEl.classList.remove('is-flashing');
   scoreboardStatusEl.textContent = supabaseClient ? '' : 'Configure Supabase to enable the shared leaderboard.';
   saveScoreButton.disabled = false;
   obstaclesEl.innerHTML = '';
@@ -188,14 +203,89 @@ function canControlGameplay() {
   return state.mode === 'playing';
 }
 
+function flashScoreLabel() {
+  scoreEl.classList.remove('is-flashing');
+  clearTimeout(state.scoreFlashTimeout);
+  scoreEl.classList.add('is-flashing');
+  state.scoreFlashTimeout = setTimeout(() => {
+    scoreEl.classList.remove('is-flashing');
+  }, 180);
+}
+
+function showFeedback(message) {
+  feedbackEl.textContent = message;
+  feedbackEl.classList.remove('is-visible');
+  clearTimeout(state.feedbackTimeout);
+  requestAnimationFrame(() => {
+    feedbackEl.classList.add('is-visible');
+  });
+  state.feedbackTimeout = setTimeout(() => {
+    feedbackEl.classList.remove('is-visible');
+  }, 560);
+}
+
+function triggerNearMissFeedback() {
+  playerEl.classList.remove('is-near-miss');
+  playerEl.classList.add('is-near-miss');
+  clearTimeout(state.switchPulseTimeout);
+  state.switchPulseTimeout = setTimeout(() => {
+    playerEl.classList.remove('is-switching');
+    playerEl.classList.remove('is-near-miss');
+  }, 130);
+}
+
+function awardPerfectDodge() {
+  state.score += 0.5;
+  scoreEl.textContent = state.score.toFixed(1);
+  flashScoreLabel();
+  triggerNearMissFeedback();
+  showFeedback('Perfect Dodge +0.5');
+}
+
+function checkPerfectDodge(previousLane) {
+  const playerRect = playerEl.getBoundingClientRect();
+  const frameRect = frame.getBoundingClientRect();
+  const playerX = playerRect.left - frameRect.left + playerRect.width / 2;
+  const dodgeWindow = 48;
+
+  const closeThreat = state.obstacles.find((obstacle) => {
+    if (obstacle.lane !== previousLane || obstacle.perfectDodged) {
+      return false;
+    }
+    const obstacleFront = obstacle.x + 18;
+    return obstacleFront >= playerX - dodgeWindow && obstacleFront <= playerX + dodgeWindow;
+  });
+
+  if (closeThreat) {
+    closeThreat.perfectDodged = true;
+    awardPerfectDodge();
+  }
+}
+
 function toggleLane() {
+  const previousLane = state.lane;
   state.lane = state.lane === 0 ? 1 : 0;
   positionPlayer();
+  playerEl.classList.remove('is-switching');
+  clearTimeout(state.switchPulseTimeout);
+  playerEl.classList.add('is-switching');
+  state.switchPulseTimeout = setTimeout(() => {
+    playerEl.classList.remove('is-switching');
+  }, 110);
+  if (previousLane !== state.lane) {
+    checkPerfectDodge(previousLane);
+  }
 }
 
 function spawnObstacle() {
+  const frameWidth = frame.getBoundingClientRect().width;
+  const lastObstacle = state.obstacles[state.obstacles.length - 1];
+  if (lastObstacle && lastObstacle.x > frameWidth - Math.max(140, state.speed * 0.42)) {
+    return false;
+  }
+
   const obstacle = document.createElement('div');
-  obstacle.className = 'obstacle';
+  obstacle.className = 'obstacle is-entering';
   const lane = pickLane();
   const y = laneTop(lane);
   obstacle.dataset.lane = String(lane);
@@ -205,8 +295,11 @@ function spawnObstacle() {
   state.obstacles.push({
     el: obstacle,
     lane,
-    x: frame.getBoundingClientRect().width + 20
+    x: frameWidth + 20,
+    age: 0,
+    perfectDodged: false
   });
+  return true;
 }
 
 function pickLane() {
@@ -233,13 +326,20 @@ function loop(timestamp) {
     state.countdown -= dt;
 
     if (state.countdown > 0) {
+      countdownEl.classList.remove('is-go');
       countdownEl.textContent = String(Math.ceil(state.countdown));
       requestAnimationFrame(loop);
       return;
     }
 
-    countdownEl.textContent = '';
+    countdownEl.textContent = 'Go';
+    countdownEl.classList.add('is-go');
     setMode('playing');
+    clearTimeout(state.goTimeout);
+    state.goTimeout = setTimeout(() => {
+      countdownEl.classList.remove('is-go');
+      countdownEl.textContent = '';
+    }, 260);
     state.lastTime = timestamp;
     requestAnimationFrame(loop);
     return;
@@ -258,15 +358,15 @@ function loop(timestamp) {
 
   state.score += dt;
   state.graceTime = Math.max(0, state.graceTime - dt);
-  state.speed = Math.min(520, 180 + state.score * 14);
-  state.spawnDelay = Math.max(0.22, 1.05 - state.score * 0.055);
+  state.speed = Math.min(500, 172 + state.score * 12.5);
+  state.spawnDelay = Math.max(0.28, 1.15 - state.score * 0.048);
   state.spawnTimer += dt;
   scoreEl.textContent = state.score.toFixed(1);
 
   if (state.spawnTimer >= state.spawnDelay) {
     state.spawnTimer -= state.spawnDelay;
-    spawnObstacle();
-    if (state.score > 8 && Math.random() < Math.min(0.4, 0.1 + state.score * 0.01)) {
+    const spawned = spawnObstacle();
+    if (spawned && state.score > 8 && Math.random() < Math.min(0.4, 0.1 + state.score * 0.01)) {
       state.spawnTimer -= state.spawnDelay * 0.3;
     }
   }
@@ -277,8 +377,12 @@ function loop(timestamp) {
 
   for (let i = state.obstacles.length - 1; i >= 0; i -= 1) {
     const obstacle = state.obstacles[i];
+    obstacle.age += dt;
     obstacle.x -= state.speed * dt;
     obstacle.el.style.left = `${obstacle.x}px`;
+    if (obstacle.age > 0.08) {
+      obstacle.el.classList.remove('is-entering');
+    }
 
     // Collision: only end the run when an obstacle reaches the player in the same lane.
     const obstacleX = obstacle.x;

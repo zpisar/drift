@@ -125,6 +125,7 @@ button {
   margin-top: 2px;
   font-size: clamp(1.3rem, 3vw, 1.9rem);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .game-frame {
@@ -157,20 +158,51 @@ button {
   bottom: 0;
 }
 
+.feedback {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  min-height: 1.2rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(21, 21, 21, 0.08);
+  font-size: 0.86rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 140ms ease, transform 140ms ease, background 140ms ease;
+  pointer-events: none;
+}
+
+.feedback.is-visible {
+  opacity: 0.92;
+  transform: translateX(-50%) translateY(-4px);
+}
+
 .player,
 .obstacle {
   position: absolute;
   left: 12%;
-  width: clamp(14px, 1.8vw, 18px);
-  height: clamp(14px, 1.8vw, 18px);
+  width: clamp(14px, 1.9vw, 20px);
+  height: clamp(14px, 1.9vw, 20px);
   background: var(--ink);
   border-radius: 999px;
   transform: translate(-50%, -50%);
 }
 
 .player {
-  transition: top 140ms ease;
+  transition: top 120ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms ease;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.player.is-switching {
+  transform: translate(-50%, -50%) scale(0.92);
+}
+
+.player.is-near-miss {
+  transform: translate(-50%, -50%) scale(1.14);
 }
 
 .obstacles {
@@ -181,6 +213,13 @@ button {
 .obstacle {
   left: auto;
   right: 0;
+  border-radius: 6px;
+  opacity: 0.92;
+}
+
+.obstacle.is-entering {
+  opacity: 0.45;
+  transform: translate(-50%, -50%) scale(0.88);
 }
 
 .overlay {
@@ -237,6 +276,11 @@ button {
   transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
 }
 
+.button:focus-visible {
+  outline: 2px solid rgba(21, 21, 21, 0.18);
+  outline-offset: 3px;
+}
+
 .button:hover {
   transform: translateY(-1px);
 }
@@ -262,10 +306,21 @@ button {
 .countdown {
   min-height: 1.4em;
   margin-top: 14px;
-  font-size: 1rem;
-  letter-spacing: 0.08em;
+  font-size: 1.05rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   opacity: 0.72;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown.is-go {
+  opacity: 1;
+  transform: scale(1.04);
+}
+
+.value.is-flashing {
+  opacity: 1;
+  transform: translateY(-1px) scale(1.06);
 }
 
 .name-field {
