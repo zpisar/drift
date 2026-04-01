@@ -14,6 +14,11 @@ const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
 const feedbackEl = document.getElementById('feedback');
 const frame = document.querySelector('.game-frame');
+const hudScrapEl = document.getElementById('hud-scrap');
+const hudShieldsEl = document.getElementById('hud-shields');
+const hudPerkEl = document.getElementById('hud-perk');
+const runScrapEarnedEl = document.getElementById('run-scrap-earned');
+const perkInfoCopyEl = document.getElementById('perk-info-copy');
 
 const STORAGE_KEY = 'drift-best-score';
 const PROGRESS_STORAGE_KEY = 'drift-progress';
@@ -113,6 +118,7 @@ const state = {
 };
 
 bestEl.textContent = state.best.toFixed(1);
+resetProgressionUi();
 renderLeaderboard();
 positionPlayer();
 
@@ -143,6 +149,24 @@ function setMode(mode) {
   overlayOver.classList.toggle('is-visible', mode === 'gameover');
 }
 
+function resetProgressionUi() {
+  if (hudScrapEl) {
+    hudScrapEl.textContent = '0';
+  }
+  if (hudShieldsEl) {
+    hudShieldsEl.textContent = '0';
+  }
+  if (hudPerkEl) {
+    hudPerkEl.textContent = 'None';
+  }
+  if (runScrapEarnedEl) {
+    runScrapEarnedEl.textContent = '0';
+  }
+  if (perkInfoCopyEl) {
+    perkInfoCopyEl.textContent = 'No active perk this run.';
+  }
+}
+
 function resetGame() {
   state.lane = 1;
   state.score = 0;
@@ -168,6 +192,7 @@ function resetGame() {
   scoreEl.classList.remove('is-flashing');
   scoreboardStatusEl.textContent = supabaseClient ? '' : 'Configure Supabase to enable the shared leaderboard.';
   saveScoreButton.disabled = false;
+  resetProgressionUi();
   obstaclesEl.innerHTML = '';
   scoreEl.textContent = '0.0';
   positionPlayer();
@@ -183,6 +208,9 @@ function startGame() {
 function gameOver() {
   setMode('gameover');
   finalScoreEl.textContent = state.score.toFixed(1);
+  if (runScrapEarnedEl) {
+    runScrapEarnedEl.textContent = '0';
+  }
   if (state.score > state.best) {
     state.best = state.score;
     state.progress = saveProgress({

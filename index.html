@@ -12,13 +12,27 @@
     <div class="layout">
       <section class="game-column" aria-label="Game area">
         <section class="hud" aria-label="Game status">
-          <div>
+          <div class="hud-group hud-group-primary">
             <div class="label">Score</div>
             <div id="score" class="value">0.0</div>
           </div>
-          <div class="hud-right">
-            <div class="label">Best</div>
-            <div id="best" class="value">0.0</div>
+          <div class="hud-group hud-group-progression" aria-label="Run progression placeholders">
+            <div class="hud-item">
+              <div class="label">Scrap</div>
+              <div id="hud-scrap" class="value value-compact">0</div>
+            </div>
+            <div class="hud-item">
+              <div class="label">Shields</div>
+              <div id="hud-shields" class="value value-compact">0</div>
+            </div>
+            <div class="hud-item hud-item-perk">
+              <div class="label">Active Perk</div>
+              <div id="hud-perk" class="value value-compact">None</div>
+            </div>
+            <div class="hud-item hud-item-best">
+              <div class="label">Best</div>
+              <div id="best" class="value value-compact">0.0</div>
+            </div>
           </div>
         </section>
 
@@ -40,6 +54,20 @@
           <div id="overlay-over" class="overlay">
             <h2>Game Over</h2>
             <p>Your run ended at <span id="final-score">0.0</span>.</p>
+            <section class="panel-stack" aria-label="Progression summary placeholders">
+              <article class="panel-card" aria-label="Scrap earned">
+                <h3>Scrap Earned</h3>
+                <p id="run-scrap-earned" class="panel-value">0</p>
+              </article>
+              <article class="panel-card" aria-label="Upgrade options">
+                <h3>Upgrades</h3>
+                <p class="panel-copy">Upgrade choices will appear here between runs.</p>
+              </article>
+              <article class="panel-card" aria-label="Perk details">
+                <h3>Perk Info</h3>
+                <p id="perk-info-copy" class="panel-copy">No active perk this run.</p>
+              </article>
+            </section>
             <label class="name-field" for="player-name">
               <span>Name</span>
               <input id="player-name" type="text" maxlength="16" placeholder="Your name">

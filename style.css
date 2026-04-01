@@ -111,7 +111,33 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: end;
+  gap: 12px;
   padding: 0 4px;
+}
+
+.hud-group {
+  display: flex;
+  align-items: end;
+}
+
+.hud-group-primary {
+  min-width: 0;
+}
+
+.hud-group-progression {
+  margin-left: auto;
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 10px;
+  text-align: right;
+}
+
+.hud-item {
+  min-width: 72px;
+}
+
+.hud-item-perk {
+  min-width: 132px;
 }
 
 .label {
@@ -126,6 +152,10 @@ button {
   font-size: clamp(1.3rem, 3vw, 1.9rem);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.value-compact {
+  font-size: clamp(0.94rem, 1.5vw, 1.2rem);
 }
 
 .game-frame {
@@ -303,6 +333,42 @@ button {
   padding-bottom: 24px;
 }
 
+.panel-stack {
+  width: min(100%, 30rem);
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.panel-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.46);
+  text-align: left;
+  padding: 12px 14px;
+}
+
+.panel-card h3 {
+  margin: 0;
+  font-size: 0.83rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.64;
+}
+
+.panel-value {
+  margin: 8px 0 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.panel-copy {
+  margin: 8px 0 0;
+  font-size: 0.96rem;
+  opacity: 0.8;
+  line-height: 1.5;
+}
+
 .countdown {
   min-height: 1.4em;
   margin-top: 14px;
@@ -370,6 +436,20 @@ button {
 
   .hud {
     padding: 0 2px;
+    align-items: start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .hud-group-progression {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    text-align: left;
+    gap: 8px 12px;
+  }
+
+  .hud-item {
+    min-width: 0;
   }
 
   .game-frame {
