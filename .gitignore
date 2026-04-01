@@ -1,0 +1,16 @@
+# OS
+Thumbs.db
+Desktop.ini
+
+# Editors
+.vscode/
+.idea/
+
+# Build / cache folders
+dist/
+build/
+.cache/
+
+# Optional local server noise
+*.log
+
