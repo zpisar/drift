@@ -38,7 +38,7 @@ button {
 .layout {
   display: grid;
   width: 100%;
-  max-width: 860px;
+  max-width: 940px;
   grid-template-columns: 1fr;
   gap: 22px;
   align-items: center;
@@ -226,8 +226,8 @@ button {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  min-height: 420px;
-  max-height: 78vh;
+  min-height: 460px;
+  max-height: 82vh;
   border: 1px solid var(--line);
   border-radius: 28px;
   overflow: hidden;
@@ -422,10 +422,28 @@ button {
 }
 
 #overlay-over {
+  height: 100%;
+  min-height: 0;
   gap: 10px;
-  justify-content: flex-start;
+  justify-content: stretch;
   padding-top: 34px;
-  padding-bottom: 24px;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.overlay-over-scroll {
+  width: min(100%, 30rem);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: grid;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+
+.overlay-over-actions {
+  margin-top: auto;
+  width: min(100%, 18rem);
 }
 
 .panel-stack {
@@ -513,7 +531,7 @@ button {
 .name-field {
   display: grid;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 0;
   width: min(100%, 18rem);
   text-align: left;
 }
@@ -552,10 +570,24 @@ button {
 
 
 @media (max-height: 800px) {
+  .game-frame {
+    min-height: 420px;
+    max-height: 80vh;
+  }
+
   #overlay-over {
     gap: 8px;
     padding-top: 22px;
-    padding-bottom: 14px;
+    padding-bottom: 0;
+  }
+
+  .overlay h2 {
+    margin-bottom: 2px;
+  }
+
+  .overlay-over-scroll {
+    gap: 8px;
+    padding-bottom: 8px;
   }
 
   .panel-stack {
@@ -570,6 +602,46 @@ button {
   .overlay-actions {
     padding-top: 10px;
     gap: 8px;
+  }
+}
+
+@media (max-height: 720px) {
+  #overlay-over {
+    padding-top: 16px;
+    gap: 6px;
+  }
+
+  .overlay-over-scroll {
+    gap: 6px;
+    padding-bottom: 6px;
+  }
+
+  .overlay h2 + p {
+    margin-top: 8px;
+    margin-bottom: 0;
+  }
+
+  .panel-stack {
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .panel-card {
+    padding: 10px 12px;
+  }
+
+  .panel-value,
+  .panel-copy {
+    margin-top: 6px;
+  }
+
+  .overlay-actions {
+    padding-top: 8px;
+    gap: 6px;
+  }
+
+  .button {
+    padding: 0.75rem 1.2rem;
   }
 }
 

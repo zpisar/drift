@@ -56,27 +56,29 @@
           </div>
 
           <div id="overlay-over" class="overlay">
-            <h2>Game Over</h2>
-            <p>Your run ended at <span id="final-score">0.0</span>.</p>
-            <section class="panel-stack" aria-label="Progression summary placeholders">
-              <article class="panel-card" aria-label="Scrap earned">
-                <h3>Scrap Earned</h3>
-                <p id="run-scrap-earned" class="panel-value">0</p>
-              </article>
-              <article class="panel-card" aria-label="Upgrade options">
-                <h3>Upgrades</h3>
-                <div id="perk-choices" class="perk-choices" role="group" aria-label="Choose one perk for next run"></div>
-              </article>
-              <article class="panel-card" aria-label="Perk details">
-                <h3>Perk Info</h3>
-                <p id="perk-info-copy" class="panel-copy">No active perk this run.</p>
-              </article>
-            </section>
-            <label class="name-field" for="player-name">
-              <span>Name</span>
-              <input id="player-name" type="text" maxlength="16" placeholder="Your name">
-            </label>
-            <div class="overlay-actions">
+            <div class="overlay-over-scroll">
+              <h2>Game Over</h2>
+              <p>Your run ended at <span id="final-score">0.0</span>.</p>
+              <section class="panel-stack" aria-label="Progression summary placeholders">
+                <article class="panel-card" aria-label="Scrap earned">
+                  <h3>Scrap Earned</h3>
+                  <p id="run-scrap-earned" class="panel-value">0</p>
+                </article>
+                <article class="panel-card" aria-label="Upgrade options">
+                  <h3>Upgrades</h3>
+                  <div id="perk-choices" class="perk-choices" role="group" aria-label="Choose one perk for next run"></div>
+                </article>
+                <article class="panel-card" aria-label="Perk details">
+                  <h3>Perk Info</h3>
+                  <p id="perk-info-copy" class="panel-copy">No active perk this run.</p>
+                </article>
+              </section>
+            </div>
+            <div class="overlay-over-actions overlay-actions">
+              <label class="name-field" for="player-name">
+                <span>Name</span>
+                <input id="player-name" type="text" maxlength="16" placeholder="Your name">
+              </label>
               <button id="save-score-button" class="button" type="button">Save Score</button>
               <button id="restart-button" class="button button-secondary" type="button">Restart</button>
             </div>
