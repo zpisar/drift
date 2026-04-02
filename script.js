@@ -398,6 +398,9 @@ function gameOver() {
   }
   playerNameEl.value = '';
   playerNameEl.focus();
+  window.setTimeout(() => {
+    playerNameEl.focus({ preventScroll: true });
+  }, 80);
   const earnedPoints = Math.max(0, Math.floor(state.score / UPGRADE_POINT_STEP));
   if (earnedPoints > 0) {
     state.upgrades.points += earnedPoints;
