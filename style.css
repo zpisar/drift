@@ -336,6 +336,9 @@ button {
   align-items: center;
   justify-content: center;
   text-align: center;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 30px 28px 34px;
   background: rgba(247, 244, 237, 0.74);
   backdrop-filter: blur(1px);
@@ -400,6 +403,22 @@ button {
   background: transparent;
   color: var(--ink);
   margin-top: 10px;
+}
+
+.overlay-actions {
+  width: min(100%, 18rem);
+  margin-top: auto;
+  padding-top: 14px;
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: 10px;
+  background: linear-gradient(to bottom, rgba(247, 244, 237, 0), rgba(247, 244, 237, 0.9) 28%, rgba(247, 244, 237, 0.95));
+}
+
+.overlay-actions .button {
+  width: 100%;
+  margin-top: 0;
 }
 
 #overlay-over {
@@ -529,6 +548,29 @@ button {
   margin-top: 14px;
   font-size: 0.88rem;
   opacity: 0.6;
+}
+
+
+@media (max-height: 800px) {
+  #overlay-over {
+    gap: 8px;
+    padding-top: 22px;
+    padding-bottom: 14px;
+  }
+
+  .panel-stack {
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .name-field {
+    margin-top: 10px;
+  }
+
+  .overlay-actions {
+    padding-top: 10px;
+    gap: 8px;
+  }
 }
 
 @media (max-width: 640px) {
