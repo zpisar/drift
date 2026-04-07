@@ -41,9 +41,9 @@ const MIN_SPEED = 96;
 const MAX_SPEED = 420;
 const BASE_SPAWN_DELAY = 1.2;
 const MIN_SPAWN_DELAY = 0.34;
-const INTENSITY_WINDOW = 14;
-const BURST_COOLDOWN = 5.5;
-const MAX_BURST_CHAIN = 1;
+const PULSE_UNLOCK_DIFFICULTY = 35;
+const PULSE_COOLDOWN = 8;
+const PULSE_LABEL_DURATION = 0.8;
 const DEFAULT_PROGRESS = Object.freeze({
   schemaVersion: PROGRESS_SCHEMA_VERSION,
   bestScore: 0
@@ -71,8 +71,8 @@ const RUN_PERKS = [
     baseSpeedOffset: 12
   }
 ];
-const HEAVY_OBSTACLE_SCORE_THRESHOLD = 16;
-const HEAVY_OBSTACLE_MAX_WEIGHT = 0.3;
+const HEAVY_OBSTACLE_DIFFICULTY_THRESHOLD = 25;
+const HEAVY_OBSTACLE_MAX_WEIGHT = 0.35;
 const HEAVY_OBSTACLE_RECENT_WINDOW = 4;
 const HEAVY_OBSTACLE_RECENT_CAP = 1;
 const NORMAL_OBSTACLE_PROFILE = Object.freeze({
@@ -175,6 +175,7 @@ const state = {
   mode: 'start',
   lane: 1,
   score: 0,
+  difficultyScore: 0,
   best: initialProgress.bestScore,
   progress: initialProgress,
   lastTime: 0,
@@ -201,7 +202,8 @@ const state = {
   },
   recentSpawnTypes: [],
   eventLabel: 'Warmup',
-  burstCooldown: BURST_COOLDOWN
+  burstCooldown: PULSE_COOLDOWN,
+  pulseLabelTimer: 0
 };
 
 bestEl.textContent = state.best.toFixed(1);
@@ -357,6 +359,7 @@ function purchaseUpgrade(type) {
 function resetGame() {
   state.lane = 1;
   state.score = 0;
+  state.difficultyScore = 0;
   state.lastTime = 0;
   state.spawnTimer = 0;
   state.spawnDelay = BASE_SPAWN_DELAY;
@@ -368,7 +371,8 @@ function resetGame() {
   state.countdown = 0;
   state.savedScore = false;
   state.eventLabel = 'Warmup';
-  state.burstCooldown = BURST_COOLDOWN;
+  state.burstCooldown = PULSE_COOLDOWN;
+  state.pulseLabelTimer = 0;
   applySelectedPerk();
   state.runShieldCharges = state.upgrades.shield;
   clearTimeout(state.switchPulseTimeout);
@@ -634,8 +638,20 @@ function spawnObstacle() {
   return true;
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(start, end, progress) {
+  return start + (end - start) * progress;
+}
+
+function progressBetween(value, start, end) {
+  return clamp((value - start) / (end - start), 0, 1);
+}
+
 function pickObstacleProfile() {
-  if (state.score < HEAVY_OBSTACLE_SCORE_THRESHOLD) {
+  if (state.difficultyScore < HEAVY_OBSTACLE_DIFFICULTY_THRESHOLD) {
     return NORMAL_OBSTACLE_PROFILE;
   }
 
@@ -644,8 +660,8 @@ function pickObstacleProfile() {
     return NORMAL_OBSTACLE_PROFILE;
   }
 
-  const thresholdProgress = state.score - HEAVY_OBSTACLE_SCORE_THRESHOLD;
-  const heavyWeight = Math.min(HEAVY_OBSTACLE_MAX_WEIGHT, 0.08 + thresholdProgress * 0.015);
+  const heavyProgress = progressBetween(state.difficultyScore, HEAVY_OBSTACLE_DIFFICULTY_THRESHOLD, 90);
+  const heavyWeight = lerp(0.1, HEAVY_OBSTACLE_MAX_WEIGHT, heavyProgress);
   return Math.random() < heavyWeight ? HEAVY_OBSTACLE_PROFILE : NORMAL_OBSTACLE_PROFILE;
 }
 
@@ -655,20 +671,47 @@ function pickLane() {
     return state.lastSpawnLane;
   }
 
-  const sameLaneChance = state.score < 10 ? 0.36 : 0.44;
+  const sameLaneChance = state.difficultyScore < 10 ? 0.36 : 0.44;
   const lane = Math.random() < sameLaneChance ? state.lastSpawnLane : (state.lastSpawnLane === 0 ? 1 : 0);
   state.lastSpawnLane = lane;
   return lane;
 }
 
 function currentIntensityState() {
-  if (state.score < 18) {
-    return { label: 'Warmup', speedGain: 8.6, spawnGain: 0.032 };
+  const difficulty = state.difficultyScore;
+
+  if (difficulty < 20) {
+    const progress = progressBetween(difficulty, 0, 20);
+    return {
+      label: 'Warmup',
+      speed: lerp(BASE_SPEED, 220, progress),
+      spawnDelay: lerp(BASE_SPAWN_DELAY, 0.95, progress)
+    };
   }
-  if (state.score < 42) {
-    return { label: 'Cruise', speedGain: 10.6, spawnGain: 0.041 };
+
+  if (difficulty < 55) {
+    const progress = progressBetween(difficulty, 20, 55);
+    return {
+      label: 'Cruise',
+      speed: lerp(220, 330, progress),
+      spawnDelay: lerp(0.95, 0.62, progress)
+    };
   }
-  return { label: 'Overdrive', speedGain: 12.4, spawnGain: 0.047 };
+
+  if (difficulty < 90) {
+    const progress = progressBetween(difficulty, 55, 90);
+    return {
+      label: 'Overdrive',
+      speed: lerp(330, MAX_SPEED, progress),
+      spawnDelay: lerp(0.62, MIN_SPAWN_DELAY, progress)
+    };
+  }
+
+  return {
+    label: 'Collapse',
+    speed: MAX_SPEED,
+    spawnDelay: MIN_SPAWN_DELAY
+  };
 }
 
 function loop(timestamp) {
@@ -716,17 +759,13 @@ function loop(timestamp) {
   state.score += dt * flowMultiplier;
   state.graceTime = Math.max(0, state.graceTime - dt);
   const focusFactor = Math.max(0.6, 1 - (state.upgrades.focus * 0.08));
+  state.difficultyScore += dt * focusFactor;
   const perkSpeedOffset = state.runPerkState.baseSpeedOffset;
   const intensity = currentIntensityState();
-  state.eventLabel = intensity.label;
-  state.speed = Math.min(
-    MAX_SPEED,
-    Math.max(MIN_SPEED, BASE_SPEED + perkSpeedOffset + state.score * (intensity.speedGain * focusFactor))
-  );
-  state.spawnDelay = Math.max(
-    MIN_SPAWN_DELAY,
-    BASE_SPAWN_DELAY - state.score * (intensity.spawnGain * focusFactor)
-  );
+  state.pulseLabelTimer = Math.max(0, state.pulseLabelTimer - dt);
+  state.eventLabel = state.pulseLabelTimer > 0 ? 'Pulse' : intensity.label;
+  state.speed = clamp(intensity.speed + perkSpeedOffset, MIN_SPEED, MAX_SPEED);
+  state.spawnDelay = clamp(intensity.spawnDelay, MIN_SPAWN_DELAY, BASE_SPAWN_DELAY);
   state.spawnTimer += dt;
   state.burstCooldown = Math.max(0, state.burstCooldown - dt);
   scoreEl.textContent = state.score.toFixed(1);
@@ -745,16 +784,17 @@ function loop(timestamp) {
     const spawned = spawnObstacle();
     if (
       spawned &&
-      state.score > INTENSITY_WINDOW &&
+      state.difficultyScore >= PULSE_UNLOCK_DIFFICULTY &&
       state.burstCooldown <= 0 &&
-      Math.random() < Math.min(0.2, 0.04 + state.score * 0.003)
+      Math.random() < Math.min(0.24, 0.06 + state.difficultyScore * 0.002)
     ) {
-      state.burstCooldown = BURST_COOLDOWN;
+      state.burstCooldown = PULSE_COOLDOWN;
+      state.pulseLabelTimer = PULSE_LABEL_DURATION;
       state.eventLabel = 'Pulse';
       if (hudEventEl) {
         hudEventEl.textContent = state.eventLabel;
       }
-      state.spawnTimer += state.spawnDelay * (0.24 * MAX_BURST_CHAIN);
+      state.spawnTimer = Math.max(state.spawnTimer, state.spawnDelay * 0.76);
     }
   }
 
