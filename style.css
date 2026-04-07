@@ -602,6 +602,8 @@ button {
 
 @media (min-width: 901px) {
   .overlay {
+    align-items: center;
+    justify-content: flex-start;
     padding: 18px 22px 20px;
     overflow: hidden;
   }
@@ -627,7 +629,7 @@ button {
     line-height: 0.96;
   }
 
-  #overlay-over > p {
+  #overlay-over > p:not(.save-status) {
     grid-area: summary;
     margin: 0;
     font-size: 0.98rem;
@@ -703,6 +705,9 @@ button {
   }
 
   .save-status {
+    grid-area: name;
+    align-self: center;
+    justify-self: center;
     margin: 0;
   }
 }
@@ -880,7 +885,7 @@ button {
     line-height: 1;
   }
 
-  #overlay-over > p {
+  #overlay-over > p:not(.save-status) {
     grid-area: summary;
     margin: 0;
     max-width: none;
