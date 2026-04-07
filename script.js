@@ -13,7 +13,7 @@ const playerNameEl = document.getElementById('player-name');
 const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
 const scoreboardToggleButton = document.getElementById('scoreboard-toggle');
-const scoreboardBodyEl = document.getElementById('scoreboard-body');
+const scoreboardPanelEl = document.querySelector('.scoreboard.mobile-collapsible');
 const feedbackEl = document.getElementById('feedback');
 const frame = document.querySelector('.game-frame');
 const hudScrapEl = document.getElementById('hud-scrap');
@@ -30,7 +30,8 @@ const buyFlowButton = document.getElementById('buy-flow');
 const buyShieldButton = document.getElementById('buy-shield');
 const upgradeStatusEl = document.getElementById('upgrade-status');
 const upgradesToggleButton = document.getElementById('upgrades-toggle');
-const upgradesBodyEl = document.getElementById('upgrades-body');
+const upgradesPanelEl = document.querySelector('.upgrades.mobile-collapsible');
+const saveStatusEl = document.getElementById('save-status');
 const mobilePanelQuery = window.matchMedia('(max-width: 640px)');
 let mobilePanelMode = null;
 
@@ -298,14 +299,16 @@ function setMode(mode) {
   renderUpgrades();
 }
 
-function setMobilePanelState(panelBody, button, expanded) {
-  if (!panelBody || !button) {
+function setMobilePanelState(panelRoot, button, expanded) {
+  if (!panelRoot || !button) {
     return;
   }
 
-  panelBody.classList.toggle('is-open', expanded);
+  panelRoot.classList.toggle('is-open', expanded);
   button.setAttribute('aria-expanded', String(expanded));
-  button.textContent = expanded ? 'Hide' : 'Show';
+  button.textContent = expanded
+    ? (button.dataset.openLabel || 'Hide')
+    : (button.dataset.closedLabel || 'Show');
 }
 
 function syncMobilePanels(forceDefault = false) {
@@ -315,12 +318,12 @@ function syncMobilePanels(forceDefault = false) {
 
   if (isMobile) {
     if (forceDefault || isInitialMobile || enteredMobile) {
-      setMobilePanelState(scoreboardBodyEl, scoreboardToggleButton, false);
-      setMobilePanelState(upgradesBodyEl, upgradesToggleButton, false);
+      setMobilePanelState(scoreboardPanelEl, scoreboardToggleButton, false);
+      setMobilePanelState(upgradesPanelEl, upgradesToggleButton, false);
     }
   } else {
-    setMobilePanelState(scoreboardBodyEl, scoreboardToggleButton, true);
-    setMobilePanelState(upgradesBodyEl, upgradesToggleButton, true);
+    setMobilePanelState(scoreboardPanelEl, scoreboardToggleButton, true);
+    setMobilePanelState(upgradesPanelEl, upgradesToggleButton, true);
   }
 
   mobilePanelMode = isMobile;
@@ -465,6 +468,7 @@ function resetGame() {
   state.surgeTimer = 0;
   state.surgeBurstSpawns = 0;
   state.surgeSpawnTimerBoosted = false;
+  state.latestSubmittedScore = loadLatestScore();
   applySelectedPerk();
   state.runShieldCharges = state.upgrades.shield;
   clearTimeout(state.switchPulseTimeout);
@@ -478,6 +482,11 @@ function resetGame() {
   feedbackEl.textContent = '';
   feedbackEl.classList.remove('is-visible');
   scoreEl.classList.remove('is-flashing');
+  overlayOver.classList.remove('is-saved');
+  if (saveStatusEl) {
+    saveStatusEl.hidden = true;
+    saveStatusEl.textContent = '';
+  }
   scoreboardStatusEl.textContent = supabaseClient ? '' : 'Configure Supabase to enable the shared leaderboard.';
   saveScoreButton.disabled = false;
   obstaclesEl.innerHTML = '';
@@ -499,6 +508,11 @@ function startGame() {
 
 function gameOver() {
   setMode('gameover');
+  overlayOver.classList.remove('is-saved');
+  if (saveStatusEl) {
+    saveStatusEl.hidden = true;
+    saveStatusEl.textContent = '';
+  }
   finalScoreEl.textContent = state.score.toFixed(1);
   if (runScrapEarnedEl) {
     runScrapEarnedEl.textContent = String(Math.max(0, Math.floor(state.score / UPGRADE_POINT_STEP)));
@@ -625,6 +639,11 @@ async function submitScore() {
   state.savedScore = true;
   state.latestSubmittedScore = { name, score };
   persistLatestScore(state.latestSubmittedScore);
+  overlayOver.classList.add('is-saved');
+  if (saveStatusEl) {
+    saveStatusEl.textContent = 'Your survival has been saved!';
+    saveStatusEl.hidden = false;
+  }
   playerNameEl.blur();
   await renderLeaderboard();
   scoreboardStatusEl.textContent = 'Score saved.';
@@ -1117,18 +1136,18 @@ startButton.addEventListener('click', startGame);
 buyFlowButton.addEventListener('click', () => purchaseUpgrade('flow'));
 buyShieldButton.addEventListener('click', () => purchaseUpgrade('shield'));
 scoreboardToggleButton?.addEventListener('click', () => {
-  if (!mobilePanelQuery.matches || !scoreboardBodyEl) {
+  if (!mobilePanelQuery.matches || !scoreboardPanelEl) {
     return;
   }
-  const expanded = !scoreboardBodyEl.classList.contains('is-open');
-  setMobilePanelState(scoreboardBodyEl, scoreboardToggleButton, expanded);
+  const expanded = !scoreboardPanelEl.classList.contains('is-open');
+  setMobilePanelState(scoreboardPanelEl, scoreboardToggleButton, expanded);
 });
 upgradesToggleButton?.addEventListener('click', () => {
-  if (!mobilePanelQuery.matches || !upgradesBodyEl) {
+  if (!mobilePanelQuery.matches || !upgradesPanelEl) {
     return;
   }
-  const expanded = !upgradesBodyEl.classList.contains('is-open');
-  setMobilePanelState(upgradesBodyEl, upgradesToggleButton, expanded);
+  const expanded = !upgradesPanelEl.classList.contains('is-open');
+  setMobilePanelState(upgradesPanelEl, upgradesToggleButton, expanded);
 });
 
 window.addEventListener('resize', () => {
