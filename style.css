@@ -336,7 +336,10 @@ button {
   justify-content: center;
   text-align: center;
   max-height: 100%;
-  overflow: hidden;
+  gap: 14px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   padding: 30px 28px 34px;
   background: rgba(247, 244, 237, 0.74);
   backdrop-filter: blur(1px);
@@ -405,13 +408,9 @@ button {
 
 .overlay-actions {
   width: min(100%, 18rem);
-  margin-top: auto;
-  padding-top: 14px;
-  position: sticky;
-  bottom: 0;
+  margin-top: 10px;
   display: grid;
   gap: 10px;
-  background: linear-gradient(to bottom, rgba(247, 244, 237, 0), rgba(247, 244, 237, 0.9) 28%, rgba(247, 244, 237, 0.95));
 }
 
 .overlay-actions .button {
@@ -420,10 +419,13 @@ button {
 }
 
 #overlay-over {
-  gap: 8px;
-  justify-content: flex-start;
+  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   padding-top: 22px;
-  padding-bottom: 16px;
+  padding-bottom: 56px;
 }
 
 .panel-stack {
@@ -431,6 +433,9 @@ button {
   display: grid;
   gap: 10px;
   margin-top: 14px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .panel-card {
@@ -512,6 +517,7 @@ button {
   display: grid;
   gap: 8px;
   margin-top: 16px;
+  margin-bottom: 12px;
   width: min(100%, 18rem);
   text-align: left;
 }
