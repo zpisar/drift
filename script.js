@@ -22,10 +22,8 @@ const hudEventEl = document.getElementById('hud-event');
 const perkInfoCopyEl = document.getElementById('perk-info-copy');
 const perkChoicesEl = document.getElementById('perk-choices');
 const upgradePointsEl = document.getElementById('upgrade-points');
-const focusLevelEl = document.getElementById('focus-level');
 const flowLevelEl = document.getElementById('flow-level');
 const shieldLevelEl = document.getElementById('shield-level');
-const buyFocusButton = document.getElementById('buy-focus');
 const buyFlowButton = document.getElementById('buy-flow');
 const buyShieldButton = document.getElementById('buy-shield');
 const upgradeStatusEl = document.getElementById('upgrade-status');
@@ -38,12 +36,24 @@ const UPGRADE_POINT_STEP = 8;
 const MAX_UPGRADE_LEVEL = 6;
 const BASE_SPEED = 156;
 const MIN_SPEED = 96;
-const MAX_SPEED = 420;
+const MAX_SPEED = 560;
 const BASE_SPAWN_DELAY = 1.2;
 const MIN_SPAWN_DELAY = 0.34;
-const PULSE_UNLOCK_DIFFICULTY = 35;
-const PULSE_COOLDOWN = 8;
-const PULSE_LABEL_DURATION = 0.8;
+const SURGE_UNLOCK_DIFFICULTY = 35;
+const SURGE_COOLDOWN = 8;
+const SURGE_DURATION = 2;
+const SURGE_BURST_SPAWNS = 3;
+const SURGE_SPAWN_DELAY_MULTIPLIER = 0.45;
+const SURGE_OBSTACLE_SPEED_MULTIPLIER = 1.35;
+const UPGRADE_COSTS = Object.freeze({
+  flow: [2, 3, 5, 7, 10, 14],
+  shield: [2, 4, 6, 9, 12, 16]
+});
+const PHASE_DURATIONS = Object.freeze({
+  Cruise: [8, 12],
+  Overdrive: [12, 18],
+  Collapse: [8, 12]
+});
 const DEFAULT_PROGRESS = Object.freeze({
   schemaVersion: PROGRESS_SCHEMA_VERSION,
   bestScore: 0
@@ -75,6 +85,9 @@ const HEAVY_OBSTACLE_DIFFICULTY_THRESHOLD = 25;
 const HEAVY_OBSTACLE_MAX_WEIGHT = 0.35;
 const HEAVY_OBSTACLE_RECENT_WINDOW = 4;
 const HEAVY_OBSTACLE_RECENT_CAP = 1;
+const HEAVY_OBSTACLE_COLLAPSE_MAX_WEIGHT = 0.65;
+const HEAVY_OBSTACLE_COLLAPSE_RECENT_WINDOW = 5;
+const HEAVY_OBSTACLE_COLLAPSE_RECENT_CAP = 2;
 const NORMAL_OBSTACLE_PROFILE = Object.freeze({
   type: 'normal',
   hitHalfWidth: 9,
@@ -143,7 +156,7 @@ function saveProgress(progress) {
 }
 
 function loadUpgrades() {
-  const fallback = { points: 0, focus: 0, flow: 0, shield: 0 };
+  const fallback = { points: 0, flow: 0, shield: 0 };
   try {
     const raw = localStorage.getItem(UPGRADE_KEY);
     if (!raw) {
@@ -159,7 +172,6 @@ function loadUpgrades() {
 function sanitizeUpgrades(raw) {
   return {
     points: Math.max(0, Math.floor(Number(raw.points) || 0)),
-    focus: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.focus) || 0))),
     flow: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.flow) || 0))),
     shield: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.shield) || 0)))
   };
@@ -180,8 +192,8 @@ const state = {
   progress: initialProgress,
   lastTime: 0,
   spawnTimer: 0,
-  spawnDelay: 1.05,
-  speed: 180,
+  spawnDelay: BASE_SPAWN_DELAY,
+  speed: BASE_SPEED,
   obstacles: [],
   graceTime: 0.9,
   lastSpawnLane: null,
@@ -202,8 +214,13 @@ const state = {
   },
   recentSpawnTypes: [],
   eventLabel: 'Warmup',
-  burstCooldown: PULSE_COOLDOWN,
-  pulseLabelTimer: 0
+  eventPhase: 'Warmup',
+  eventPhaseTimer: 0,
+  hasEnteredCollapse: false,
+  surgeCooldown: SURGE_COOLDOWN,
+  surgeTimer: 0,
+  surgeBurstSpawns: 0,
+  surgeSpawnTimerBoosted: false
 };
 
 bestEl.textContent = state.best.toFixed(1);
@@ -239,6 +256,7 @@ function setMode(mode) {
   state.mode = mode;
   overlayStart.classList.toggle('is-visible', mode === 'start' || mode === 'countdown');
   overlayOver.classList.toggle('is-visible', mode === 'gameover');
+  renderUpgrades();
 }
 
 function currentPerk() {
@@ -318,31 +336,33 @@ function resetProgressionUi() {
 }
 
 function upgradeCost(type) {
-  return 1 + state.upgrades[type];
+  const costTable = UPGRADE_COSTS[type];
+  if (!costTable) {
+    return Infinity;
+  }
+  return costTable[state.upgrades[type]] ?? Infinity;
 }
 
 function canPurchase(type) {
-  return state.upgrades[type] < MAX_UPGRADE_LEVEL && state.upgrades.points >= upgradeCost(type);
+  const canBuyBetweenRuns = state.mode === 'start' || state.mode === 'gameover';
+  return canBuyBetweenRuns && state.upgrades[type] < MAX_UPGRADE_LEVEL && state.upgrades.points >= upgradeCost(type);
 }
 
 function renderUpgrades() {
-  if (!upgradePointsEl || !focusLevelEl || !flowLevelEl || !shieldLevelEl) {
+  if (!upgradePointsEl || !flowLevelEl || !shieldLevelEl) {
     return;
   }
   upgradePointsEl.textContent = String(state.upgrades.points);
-  focusLevelEl.textContent = `Lv ${state.upgrades.focus}`;
   flowLevelEl.textContent = `Lv ${state.upgrades.flow}`;
   shieldLevelEl.textContent = `Lv ${state.upgrades.shield}`;
-  buyFocusButton.disabled = !canPurchase('focus');
   buyFlowButton.disabled = !canPurchase('flow');
   buyShieldButton.disabled = !canPurchase('shield');
-  buyFocusButton.textContent = state.upgrades.focus >= MAX_UPGRADE_LEVEL ? 'Focus Maxed' : `Buy Focus (${upgradeCost('focus')})`;
   buyFlowButton.textContent = state.upgrades.flow >= MAX_UPGRADE_LEVEL ? 'Flow Maxed' : `Buy Flow (${upgradeCost('flow')})`;
   buyShieldButton.textContent = state.upgrades.shield >= MAX_UPGRADE_LEVEL ? 'Shield Maxed' : `Buy Shield (${upgradeCost('shield')})`;
   if (upgradeStatusEl) {
-    upgradeStatusEl.textContent = state.mode === 'playing'
-      ? `Shields left this run: ${state.runShieldCharges}`
-      : `Earn 1 point every ${UPGRADE_POINT_STEP} score`;
+    upgradeStatusEl.textContent = state.mode === 'playing' || state.mode === 'countdown'
+      ? ''
+      : `Earn 1 scrap every ${UPGRADE_POINT_STEP} score`;
   }
 }
 
@@ -371,8 +391,13 @@ function resetGame() {
   state.countdown = 0;
   state.savedScore = false;
   state.eventLabel = 'Warmup';
-  state.burstCooldown = PULSE_COOLDOWN;
-  state.pulseLabelTimer = 0;
+  state.eventPhase = 'Warmup';
+  state.eventPhaseTimer = 0;
+  state.hasEnteredCollapse = false;
+  state.surgeCooldown = SURGE_COOLDOWN;
+  state.surgeTimer = 0;
+  state.surgeBurstSpawns = 0;
+  state.surgeSpawnTimerBoosted = false;
   applySelectedPerk();
   state.runShieldCharges = state.upgrades.shield;
   clearTimeout(state.switchPulseTimeout);
@@ -430,7 +455,7 @@ function gameOver() {
     state.upgrades.points += earnedPoints;
     persistUpgrades();
     renderUpgrades();
-    showFeedback(`+${earnedPoints} Upgrade Point${earnedPoints > 1 ? 's' : ''}`);
+    showFeedback(`+${earnedPoints} Scrap`);
   }
 
   rollPerkChoices();
@@ -536,7 +561,7 @@ function flashScoreLabel() {
   }, 180);
 }
 
-function showFeedback(message) {
+function showFeedback(message, duration = 560) {
   feedbackEl.textContent = message;
   feedbackEl.classList.remove('is-visible');
   clearTimeout(state.feedbackTimeout);
@@ -545,7 +570,7 @@ function showFeedback(message) {
   });
   state.feedbackTimeout = setTimeout(() => {
     feedbackEl.classList.remove('is-visible');
-  }, 560);
+  }, duration);
 }
 
 function triggerNearMissFeedback() {
@@ -629,10 +654,11 @@ function spawnObstacle() {
     perfectDodged: false,
     type: profile.type,
     hitHalfWidth: profile.hitHalfWidth,
-    speedMultiplier: profile.speedMultiplier
+    speedMultiplier: profile.speedMultiplier,
+    eventSpeedMultiplier: state.surgeSpawnTimerBoosted ? SURGE_OBSTACLE_SPEED_MULTIPLIER : 1
   });
   state.recentSpawnTypes.push(profile.type);
-  if (state.recentSpawnTypes.length > HEAVY_OBSTACLE_RECENT_WINDOW) {
+  if (state.recentSpawnTypes.length > HEAVY_OBSTACLE_COLLAPSE_RECENT_WINDOW) {
     state.recentSpawnTypes.shift();
   }
   return true;
@@ -650,18 +676,89 @@ function progressBetween(value, start, end) {
   return clamp((value - start) / (end - start), 0, 1);
 }
 
+function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function setEventPhase(phase) {
+  state.eventPhase = phase;
+  state.eventLabel = phase;
+  const duration = PHASE_DURATIONS[phase];
+  state.eventPhaseTimer = duration ? randomBetween(duration[0], duration[1]) : 0;
+}
+
+function pickNextEventPhase() {
+  if (state.eventPhase === 'Collapse') {
+    return 'Overdrive';
+  }
+
+  if (state.eventPhase === 'Cruise') {
+    return 'Overdrive';
+  }
+
+  const roll = Math.random();
+  if (roll < 0.45) {
+    return 'Collapse';
+  }
+  if (roll < 0.7) {
+    return 'Cruise';
+  }
+  return 'Overdrive';
+}
+
+function updateEventPhase(dt) {
+  const difficulty = state.difficultyScore;
+
+  if (!state.hasEnteredCollapse) {
+    if (difficulty < 20) {
+      setEventPhase('Warmup');
+      return;
+    }
+    if (difficulty < 55) {
+      setEventPhase('Cruise');
+      return;
+    }
+    if (difficulty < 90) {
+      setEventPhase('Overdrive');
+      return;
+    }
+    state.hasEnteredCollapse = true;
+    setEventPhase('Collapse');
+    return;
+  }
+
+  state.eventPhaseTimer = Math.max(0, state.eventPhaseTimer - dt);
+  if (state.eventPhaseTimer <= 0) {
+    setEventPhase(pickNextEventPhase());
+  } else {
+    state.eventLabel = state.eventPhase;
+  }
+}
+
 function pickObstacleProfile() {
   if (state.difficultyScore < HEAVY_OBSTACLE_DIFFICULTY_THRESHOLD) {
     return NORMAL_OBSTACLE_PROFILE;
   }
 
-  const heavyCount = state.recentSpawnTypes.filter((type) => type === HEAVY_OBSTACLE_PROFILE.type).length;
-  if (heavyCount >= HEAVY_OBSTACLE_RECENT_CAP) {
+  const isCollapse = state.eventPhase === 'Collapse';
+  const recentWindow = isCollapse ? HEAVY_OBSTACLE_COLLAPSE_RECENT_WINDOW : HEAVY_OBSTACLE_RECENT_WINDOW;
+  const recentCap = isCollapse ? HEAVY_OBSTACLE_COLLAPSE_RECENT_CAP : HEAVY_OBSTACLE_RECENT_CAP;
+  const recentTypes = state.recentSpawnTypes.slice(-recentWindow);
+  const heavyCount = recentTypes.filter((type) => type === HEAVY_OBSTACLE_PROFILE.type).length;
+  if (heavyCount >= recentCap) {
     return NORMAL_OBSTACLE_PROFILE;
   }
 
   const heavyProgress = progressBetween(state.difficultyScore, HEAVY_OBSTACLE_DIFFICULTY_THRESHOLD, 90);
-  const heavyWeight = lerp(0.1, HEAVY_OBSTACLE_MAX_WEIGHT, heavyProgress);
+  const phaseBonus = isCollapse
+    ? 0.28
+    : state.eventPhase === 'Overdrive'
+      ? 0.12
+      : state.hasEnteredCollapse && state.eventPhase === 'Cruise'
+        ? -0.12
+        : 0;
+  const heavyMaxWeight = isCollapse ? HEAVY_OBSTACLE_COLLAPSE_MAX_WEIGHT : 0.5;
+  const heavyWeight = clamp(lerp(0.1, HEAVY_OBSTACLE_MAX_WEIGHT, heavyProgress) + phaseBonus, 0.1, heavyMaxWeight);
   return Math.random() < heavyWeight ? HEAVY_OBSTACLE_PROFILE : NORMAL_OBSTACLE_PROFILE;
 }
 
@@ -671,7 +768,10 @@ function pickLane() {
     return state.lastSpawnLane;
   }
 
-  const sameLaneChance = state.difficultyScore < 10 ? 0.36 : 0.44;
+  const baseSameLaneChance = state.difficultyScore < 10 ? 0.36 : 0.44;
+  const phaseLanePressure = state.eventPhase === 'Collapse' ? 0.2 : state.eventPhase === 'Overdrive' ? 0.08 : 0;
+  const maxSameLaneChance = state.eventPhase === 'Collapse' ? 0.68 : 0.58;
+  const sameLaneChance = clamp(baseSameLaneChance + phaseLanePressure, 0.35, maxSameLaneChance);
   const lane = Math.random() < sameLaneChance ? state.lastSpawnLane : (state.lastSpawnLane === 0 ? 1 : 0);
   state.lastSpawnLane = lane;
   return lane;
@@ -679,6 +779,30 @@ function pickLane() {
 
 function currentIntensityState() {
   const difficulty = state.difficultyScore;
+
+  if (state.hasEnteredCollapse) {
+    if (state.eventPhase === 'Cruise') {
+      return {
+        label: 'Cruise',
+        speed: 350,
+        spawnDelay: 0.58
+      };
+    }
+
+    if (state.eventPhase === 'Overdrive') {
+      return {
+        label: 'Overdrive',
+        speed: 500,
+        spawnDelay: 0.36
+      };
+    }
+
+    return {
+      label: 'Collapse',
+      speed: MAX_SPEED,
+      spawnDelay: MIN_SPAWN_DELAY
+    };
+  }
 
   if (difficulty < 20) {
     const progress = progressBetween(difficulty, 0, 20);
@@ -702,8 +826,8 @@ function currentIntensityState() {
     const progress = progressBetween(difficulty, 55, 90);
     return {
       label: 'Overdrive',
-      speed: lerp(330, MAX_SPEED, progress),
-      spawnDelay: lerp(0.62, MIN_SPAWN_DELAY, progress)
+      speed: lerp(330, 500, progress),
+      spawnDelay: lerp(0.62, 0.38, progress)
     };
   }
 
@@ -758,16 +882,21 @@ function loop(timestamp) {
   const flowMultiplier = 1 + (state.upgrades.flow * 0.12);
   state.score += dt * flowMultiplier;
   state.graceTime = Math.max(0, state.graceTime - dt);
-  const focusFactor = Math.max(0.6, 1 - (state.upgrades.focus * 0.08));
-  state.difficultyScore += dt * focusFactor;
+  state.difficultyScore += dt;
   const perkSpeedOffset = state.runPerkState.baseSpeedOffset;
+  updateEventPhase(dt);
   const intensity = currentIntensityState();
-  state.pulseLabelTimer = Math.max(0, state.pulseLabelTimer - dt);
-  state.eventLabel = state.pulseLabelTimer > 0 ? 'Pulse' : intensity.label;
+  state.eventLabel = intensity.label;
   state.speed = clamp(intensity.speed + perkSpeedOffset, MIN_SPEED, MAX_SPEED);
   state.spawnDelay = clamp(intensity.spawnDelay, MIN_SPAWN_DELAY, BASE_SPAWN_DELAY);
   state.spawnTimer += dt;
-  state.burstCooldown = Math.max(0, state.burstCooldown - dt);
+  state.surgeCooldown = Math.max(0, state.surgeCooldown - dt);
+  state.surgeTimer = Math.max(0, state.surgeTimer - dt);
+  if (state.surgeTimer <= 0 || state.surgeBurstSpawns <= 0 || state.eventPhase === 'Collapse') {
+    state.surgeTimer = 0;
+    state.surgeBurstSpawns = 0;
+    state.surgeSpawnTimerBoosted = false;
+  }
   scoreEl.textContent = state.score.toFixed(1);
   if (hudScrapEl) {
     hudScrapEl.textContent = String(Math.floor(state.score / UPGRADE_POINT_STEP));
@@ -779,22 +908,33 @@ function loop(timestamp) {
     hudEventEl.textContent = state.eventLabel;
   }
 
-  if (state.spawnTimer >= state.spawnDelay) {
-    state.spawnTimer -= state.spawnDelay;
+  const surgeActive = state.surgeTimer > 0 && state.surgeBurstSpawns > 0;
+  const effectiveSpawnDelay = surgeActive ? state.spawnDelay * SURGE_SPAWN_DELAY_MULTIPLIER : state.spawnDelay;
+  state.surgeSpawnTimerBoosted = surgeActive;
+
+  if (state.spawnTimer >= effectiveSpawnDelay) {
+    state.spawnTimer -= effectiveSpawnDelay;
     const spawned = spawnObstacle();
+    if (spawned && surgeActive) {
+      state.surgeBurstSpawns -= 1;
+      if (state.surgeBurstSpawns <= 0) {
+        state.surgeTimer = 0;
+        state.surgeSpawnTimerBoosted = false;
+      }
+    }
     if (
       spawned &&
-      state.difficultyScore >= PULSE_UNLOCK_DIFFICULTY &&
-      state.burstCooldown <= 0 &&
+      (state.eventPhase === 'Cruise' || state.eventPhase === 'Overdrive') &&
+      state.difficultyScore >= SURGE_UNLOCK_DIFFICULTY &&
+      state.surgeCooldown <= 0 &&
       Math.random() < Math.min(0.24, 0.06 + state.difficultyScore * 0.002)
     ) {
-      state.burstCooldown = PULSE_COOLDOWN;
-      state.pulseLabelTimer = PULSE_LABEL_DURATION;
-      state.eventLabel = 'Pulse';
-      if (hudEventEl) {
-        hudEventEl.textContent = state.eventLabel;
-      }
-      state.spawnTimer = Math.max(state.spawnTimer, state.spawnDelay * 0.76);
+      state.surgeCooldown = SURGE_COOLDOWN;
+      state.surgeTimer = SURGE_DURATION;
+      state.surgeBurstSpawns = SURGE_BURST_SPAWNS;
+      state.surgeSpawnTimerBoosted = true;
+      showFeedback('Surge!', SURGE_DURATION * 1000);
+      state.spawnTimer = Math.max(state.spawnTimer, state.spawnDelay * SURGE_SPAWN_DELAY_MULTIPLIER);
     }
   }
 
@@ -805,7 +945,7 @@ function loop(timestamp) {
   for (let i = state.obstacles.length - 1; i >= 0; i -= 1) {
     const obstacle = state.obstacles[i];
     obstacle.age += dt;
-    obstacle.x -= state.speed * obstacle.speedMultiplier * dt;
+    obstacle.x -= state.speed * obstacle.speedMultiplier * obstacle.eventSpeedMultiplier * dt;
     obstacle.el.style.left = `${obstacle.x}px`;
     if (obstacle.age > 0.08) {
       obstacle.el.classList.remove('is-entering');
@@ -891,7 +1031,6 @@ playerNameEl.addEventListener('keydown', (event) => {
   }
 });
 startButton.addEventListener('click', startGame);
-buyFocusButton.addEventListener('click', () => purchaseUpgrade('focus'));
 buyFlowButton.addEventListener('click', () => purchaseUpgrade('flow'));
 buyShieldButton.addEventListener('click', () => purchaseUpgrade('shield'));
 
