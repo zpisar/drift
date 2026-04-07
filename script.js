@@ -32,6 +32,8 @@ const STORAGE_KEY = 'drift-best-score';
 const PROGRESS_STORAGE_KEY = 'drift-progress';
 const PROGRESS_SCHEMA_VERSION = 1;
 const UPGRADE_KEY = 'drift-upgrades-v02';
+const LATEST_SCORE_KEY = 'drift-latest-score-v01';
+const LEADERBOARD_LIMIT = 10;
 const UPGRADE_POINT_STEP = 8;
 const MAX_UPGRADE_LEVEL = 6;
 const BASE_SPEED = 156;
@@ -155,6 +157,34 @@ function saveProgress(progress) {
   return nextProgress;
 }
 
+function loadLatestScore() {
+  try {
+    const raw = localStorage.getItem(LATEST_SCORE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    const score = Number(parsed.score);
+    if (!Number.isFinite(score)) {
+      return null;
+    }
+    return {
+      name: String(parsed.name || 'Player'),
+      score
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function persistLatestScore(scoreEntry) {
+  try {
+    localStorage.setItem(LATEST_SCORE_KEY, JSON.stringify(scoreEntry));
+  } catch (error) {
+    // Ignore storage errors so the shared leaderboard still works.
+  }
+}
+
 function loadUpgrades() {
   const fallback = { points: 0, flow: 0, shield: 0 };
   try {
@@ -182,11 +212,13 @@ function persistUpgrades() {
 }
 
 const initialProgress = loadProgress();
+const initialLatestScore = loadLatestScore();
 
 const state = {
   mode: 'start',
   lane: 1,
   score: 0,
+  latestSubmittedScore: initialLatestScore,
   difficultyScore: 0,
   best: initialProgress.bestScore,
   progress: initialProgress,
@@ -492,7 +524,7 @@ async function fetchLeaderboard() {
     .select('name, score')
     .order('score', { ascending: false })
     .order('created_at', { ascending: true })
-    .limit(5);
+    .limit(LEADERBOARD_LIMIT);
 
   if (error) {
     scoreboardStatusEl.textContent = 'Could not load leaderboard.';
@@ -505,14 +537,27 @@ async function fetchLeaderboard() {
 
 async function renderLeaderboard() {
   const entries = await fetchLeaderboard();
-  if (entries.length === 0) {
+  const visibleEntries = entries.slice(0, LEADERBOARD_LIMIT);
+  const latest = state.latestSubmittedScore;
+  const latestIsVisible = latest && visibleEntries.some((entry) => (
+    String(entry.name) === latest.name &&
+    Number(entry.score).toFixed(1) === latest.score.toFixed(1)
+  ));
+
+  if (visibleEntries.length === 0 && !latest) {
     scoreboardListEl.innerHTML = '<li class="score-row"><span class="score-name">No scores yet</span><span class="score-value">-</span></li>';
     return;
   }
 
-  scoreboardListEl.innerHTML = entries.slice(0, 5).map((entry, index) => (
+  const rows = visibleEntries.map((entry, index) => (
     `<li class="score-row"><span class="score-name">${index + 1}. ${escapeHtml(entry.name)}</span><span class="score-value">${Number(entry.score).toFixed(1)}</span></li>`
-  )).join('');
+  ));
+
+  if (latest && !latestIsVisible) {
+    rows.push(`<li class="score-row"><span class="score-name">Your latest: ${escapeHtml(latest.name)}</span><span class="score-value">${latest.score.toFixed(1)}</span></li>`);
+  }
+
+  scoreboardListEl.innerHTML = rows.join('');
 }
 
 async function submitScore() {
@@ -529,9 +574,10 @@ async function submitScore() {
   scoreboardStatusEl.textContent = 'Saving score...';
   saveScoreButton.disabled = true;
 
+  const score = Number(state.score.toFixed(1));
   const { error } = await supabaseClient.from(SCORE_TABLE).insert({
     name,
-    score: Number(state.score.toFixed(1))
+    score
   });
 
   saveScoreButton.disabled = false;
@@ -542,6 +588,8 @@ async function submitScore() {
   }
 
   state.savedScore = true;
+  state.latestSubmittedScore = { name, score };
+  persistLatestScore(state.latestSubmittedScore);
   playerNameEl.blur();
   await renderLeaderboard();
   scoreboardStatusEl.textContent = 'Score saved.';

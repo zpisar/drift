@@ -16,7 +16,7 @@ Play in your browser through GitHub Pages:
 - Your action switches between the two lanes.
 - Avoid incoming blocks by moving into the safe lane.
 - Survive longer to increase your score.
-- Enter your name after a run to save a top-5 score.
+- Enter your name after a run to save a top-10 score.
 
 ## HUD Guide
 
