@@ -593,7 +593,49 @@ button {
 
 @media (max-width: 640px) {
   body {
-    padding: 16px;
+    min-height: 100dvh;
+    padding: 12px;
+    touch-action: manipulation;
+  }
+
+  .layout {
+    gap: 12px;
+  }
+
+  .game-column {
+    order: 1;
+    gap: 12px;
+  }
+
+  .scoreboard {
+    order: 2;
+  }
+
+  .upgrades {
+    order: 3;
+  }
+
+  .scoreboard,
+  .upgrades {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .scoreboard-head {
+    margin-bottom: 10px;
+  }
+
+  .scoreboard-status {
+    margin-bottom: 8px;
+  }
+
+  .scoreboard-list,
+  .upgrade-list {
+    gap: 8px;
+  }
+
+  .upgrade-item {
+    padding: 9px 10px 10px;
   }
 
   .hud {
@@ -616,11 +658,40 @@ button {
 
   .game-frame {
     aspect-ratio: auto;
-    min-height: 72vh;
+    min-height: 58svh;
     border-radius: 22px;
   }
 
   .overlay {
-    padding: 22px 20px 26px;
+    padding: 18px 16px 22px;
+  }
+
+  .overlay h1,
+  .overlay h2 {
+    font-size: clamp(2.1rem, 12vw, 3.6rem);
+  }
+
+  .overlay p {
+    max-width: 20rem;
+    font-size: 0.94rem;
+  }
+
+  .panel-stack {
+    width: 100%;
+  }
+
+  .name-field,
+  .overlay-actions {
+    width: min(100%, 16rem);
+  }
+
+  .button {
+    min-width: 0;
+  }
+
+  .feedback {
+    top: 14px;
+    font-size: 0.76rem;
+    letter-spacing: 0.12em;
   }
 }
