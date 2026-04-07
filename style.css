@@ -723,26 +723,34 @@ button {
   }
 
   .overlay {
-    padding: 18px 16px 22px;
+    padding: 10px;
+    gap: 6px;
+    overflow: hidden;
+    align-items: stretch;
+    justify-content: flex-start;
   }
 
   .overlay h1,
   .overlay h2 {
-    font-size: clamp(2.1rem, 12vw, 3.6rem);
+    font-size: clamp(1.4rem, 7.5vw, 2rem);
   }
 
   .overlay p {
-    max-width: 20rem;
-    font-size: 0.94rem;
+    max-width: 100%;
+    font-size: 0.76rem;
   }
 
   .panel-stack {
     width: 100%;
+    flex: 0 0 auto;
+    overflow: hidden;
+    gap: 6px;
+    margin-top: 0;
   }
 
   .name-field,
   .overlay-actions {
-    width: min(100%, 16rem);
+    width: 100%;
   }
 
   .button {
@@ -753,5 +761,135 @@ button {
     top: 14px;
     font-size: 0.76rem;
     letter-spacing: 0.12em;
+  }
+
+  #overlay-over {
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 8px;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    justify-items: stretch;
+  }
+
+  #overlay-over > h2,
+  #overlay-over > p,
+  #overlay-over > .panel-stack,
+  #overlay-over > .name-field,
+  #overlay-over > .save-status,
+  #overlay-over > .overlay-actions {
+    grid-column: 1 / -1;
+  }
+
+  #overlay-over h2 {
+    margin-top: 0;
+    font-size: clamp(1.35rem, 7vw, 1.95rem);
+  }
+
+  #overlay-over > p {
+    margin-top: 0;
+    font-size: 0.72rem;
+    max-width: none;
+  }
+
+  .panel-card {
+    padding: 6px 7px 7px;
+    border-radius: 10px;
+  }
+
+  .panel-card h3 {
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+  }
+
+  .panel-value {
+    margin-top: 3px;
+    font-size: 0.84rem;
+  }
+
+  .panel-copy {
+    margin-top: 3px;
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+
+  .perk-choices {
+    margin-top: 4px;
+    gap: 4px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .perk-choice {
+    padding: 0.36rem 0.5rem;
+    border-radius: 8px;
+  }
+
+  .perk-choice strong {
+    font-size: 0.68rem;
+  }
+
+  .perk-choice span {
+    margin-top: 0;
+    font-size: 0.6rem;
+  }
+
+  .name-field {
+    margin-top: 4px;
+    margin-bottom: 4px;
+    gap: 3px;
+  }
+
+  .name-field span {
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+  }
+
+  .name-field input {
+    padding: 0.5rem 0.7rem;
+  }
+
+  .overlay-actions {
+    margin-top: 2px;
+    gap: 5px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .button {
+    padding: 0.52rem 0.75rem;
+    font-size: 0.78rem;
+  }
+
+  .panel-stack {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .panel-stack .panel-card:nth-child(1) {
+    order: 1;
+  }
+
+  .panel-stack .panel-card:nth-child(3) {
+    order: 2;
+  }
+
+  .panel-stack .panel-card:nth-child(2) {
+    order: 3;
+  }
+
+  .panel-stack .panel-card {
+    margin: 0;
+  }
+
+  .save-status {
+    margin-top: 0;
+    min-height: 1em;
+    font-size: 0.7rem;
+  }
+
+  .overlay.is-saved #save-status {
+    margin-top: 0;
   }
 }
