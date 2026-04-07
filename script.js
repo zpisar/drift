@@ -54,6 +54,35 @@ const SURGE_DURATION = 2;
 const SURGE_BURST_SPAWNS = 3;
 const SURGE_SPAWN_DELAY_MULTIPLIER = 0.45;
 const SURGE_OBSTACLE_SPEED_MULTIPLIER = 1.35;
+// Gameplay tuning grouped for quick balancing passes.
+const SPAWN_FAIRNESS_TUNING = Object.freeze({
+  earlyWindowDifficulty: 20,
+  earlyLeadDistance: 220,
+  midLeadDistance: 176,
+  defaultLeadDistance: 140,
+  earlyLanePressureStart: 0.34
+});
+const ENEMY_VARIETY_TUNING = Object.freeze({
+  recentTypeWindow: 6,
+  phantomUnlockDifficulty: 32,
+  phantomMaxWeight: 0.2,
+  phantomRecentCap: 1,
+  phantomSwapTelegraphProgress: 0.28,
+  phantomSwapProgress: 0.46,
+  splitterUnlockDifficulty: 48,
+  splitterMaxWeight: 0.16,
+  splitterRecentCap: 1,
+  splitterTelegraphProgress: 0.22,
+  splitterSplitProgress: 0.36,
+  splitterChildOffset: 84,
+  splitterFragmentHitHalfWidth: 7,
+  splitterFragmentSpeedMultiplier: 1.1
+});
+const EVADE_FEEDBACK_TUNING = Object.freeze({
+  phantom: 'Phantom evaded!',
+  splitter: 'Splitter evaded!',
+  duration: 620
+});
 const UPGRADE_COSTS = Object.freeze({
   flow: [2, 3, 5, 7, 10, 14],
   shield: [2, 4, 6, 9, 12, 16]
@@ -100,13 +129,31 @@ const HEAVY_OBSTACLE_COLLAPSE_RECENT_CAP = 2;
 const NORMAL_OBSTACLE_PROFILE = Object.freeze({
   type: 'normal',
   hitHalfWidth: 9,
-  speedMultiplier: 1
+  speedMultiplier: 1,
+  baseClasses: []
 });
 const HEAVY_OBSTACLE_PROFILE = Object.freeze({
   type: 'heavy',
   hitHalfWidth: 16,
-  speedMultiplier: 0.84
+  speedMultiplier: 0.84,
+  baseClasses: ['is-heavy', 'is-telegraph']
 });
+const PHANTOM_OBSTACLE_PROFILE = Object.freeze({
+  type: 'phantom',
+  hitHalfWidth: 12,
+  speedMultiplier: 0.9,
+  baseClasses: ['is-heavy']
+});
+const SPLITTER_OBSTACLE_PROFILE = Object.freeze({
+  type: 'splitter',
+  hitHalfWidth: 13,
+  speedMultiplier: 0.86,
+  baseClasses: ['is-heavy']
+});
+const RECENT_SPAWN_TYPES_LIMIT = Math.max(
+  HEAVY_OBSTACLE_COLLAPSE_RECENT_WINDOW,
+  ENEMY_VARIETY_TUNING.recentTypeWindow
+);
 
 const SUPABASE_URL = 'https://csswxdyrfvmjgcnygmrp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_8aa4QwHmN_5IEGrZ0xkR6g_gMuPbsiF';
@@ -259,7 +306,9 @@ const state = {
   surgeCooldown: SURGE_COOLDOWN,
   surgeTimer: 0,
   surgeBurstSpawns: 0,
-  surgeSpawnTimerBoosted: false
+  surgeSpawnTimerBoosted: false,
+  nextEvadeGroupId: 1,
+  evadeGroupRemaining: {}
 };
 
 bestEl.textContent = state.best.toFixed(1);
@@ -468,6 +517,8 @@ function resetGame() {
   state.surgeTimer = 0;
   state.surgeBurstSpawns = 0;
   state.surgeSpawnTimerBoosted = false;
+  state.nextEvadeGroupId = 1;
+  state.evadeGroupRemaining = {};
   state.latestSubmittedScore = loadLatestScore();
   applySelectedPerk();
   state.runShieldCharges = state.upgrades.shield;
@@ -729,41 +780,273 @@ function toggleLane() {
   }
 }
 
+function rememberSpawnType(type) {
+  state.recentSpawnTypes.push(type);
+  if (state.recentSpawnTypes.length > RECENT_SPAWN_TYPES_LIMIT) {
+    state.recentSpawnTypes.shift();
+  }
+}
+
+function countRecentSpawnType(type, windowSize) {
+  const recentTypes = state.recentSpawnTypes.slice(-windowSize);
+  return recentTypes.filter((entry) => entry === type).length;
+}
+
+function defaultEvadeCueType(profileType) {
+  if (profileType === PHANTOM_OBSTACLE_PROFILE.type) {
+    return 'phantom';
+  }
+  if (profileType === SPLITTER_OBSTACLE_PROFILE.type) {
+    return 'splitter';
+  }
+  return null;
+}
+
+function nextEvadeGroupId() {
+  const groupId = state.nextEvadeGroupId;
+  state.nextEvadeGroupId += 1;
+  return groupId;
+}
+
+function hasTrackedEvadeGroup(groupId) {
+  return Object.prototype.hasOwnProperty.call(state.evadeGroupRemaining, groupId);
+}
+
+function registerObstacleEvadeTracking(obstacleState) {
+  if (obstacleState.evadeCueType !== 'splitter') {
+    return;
+  }
+  if (!Number.isInteger(obstacleState.evadeCueGroupId)) {
+    obstacleState.evadeCueGroupId = nextEvadeGroupId();
+  }
+  const tracked = state.evadeGroupRemaining[obstacleState.evadeCueGroupId] ?? 0;
+  state.evadeGroupRemaining[obstacleState.evadeCueGroupId] = tracked + 1;
+}
+
+function consumeSplitterEvadeMember(obstacle, triggerFeedback) {
+  if (!Number.isInteger(obstacle.evadeCueGroupId)) {
+    return;
+  }
+  if (!hasTrackedEvadeGroup(obstacle.evadeCueGroupId)) {
+    return;
+  }
+  const remaining = state.evadeGroupRemaining[obstacle.evadeCueGroupId] - 1;
+  if (remaining > 0) {
+    state.evadeGroupRemaining[obstacle.evadeCueGroupId] = remaining;
+    return;
+  }
+  delete state.evadeGroupRemaining[obstacle.evadeCueGroupId];
+  if (triggerFeedback) {
+    showFeedback(EVADE_FEEDBACK_TUNING.splitter, EVADE_FEEDBACK_TUNING.duration);
+  }
+}
+
+function resolveObstacleRemoval(obstacle, wasEvaded) {
+  if (obstacle.evadeCueType === 'phantom' && wasEvaded) {
+    showFeedback(EVADE_FEEDBACK_TUNING.phantom, EVADE_FEEDBACK_TUNING.duration);
+    return;
+  }
+  if (obstacle.evadeCueType === 'splitter') {
+    if (wasEvaded) {
+      consumeSplitterEvadeMember(obstacle, true);
+      return;
+    }
+    delete state.evadeGroupRemaining[obstacle.evadeCueGroupId];
+  }
+}
+
+function removeObstacleAt(index, wasEvaded) {
+  const obstacle = state.obstacles[index];
+  if (!obstacle) {
+    return;
+  }
+  resolveObstacleRemoval(obstacle, wasEvaded);
+  obstacle.el.remove();
+  state.obstacles.splice(index, 1);
+}
+
+function spawnLeadDistance() {
+  const dynamicLeadDistance = state.speed * 0.42;
+  if (state.difficultyScore < SPAWN_FAIRNESS_TUNING.earlyWindowDifficulty) {
+    return Math.max(SPAWN_FAIRNESS_TUNING.earlyLeadDistance, dynamicLeadDistance + 48);
+  }
+  if (state.difficultyScore < SURGE_UNLOCK_DIFFICULTY) {
+    return Math.max(SPAWN_FAIRNESS_TUNING.midLeadDistance, dynamicLeadDistance + 24);
+  }
+  return Math.max(SPAWN_FAIRNESS_TUNING.defaultLeadDistance, dynamicLeadDistance);
+}
+
+function hasEarlyLaneSaturation(frameWidth) {
+  if (state.difficultyScore >= SPAWN_FAIRNESS_TUNING.earlyWindowDifficulty) {
+    return false;
+  }
+
+  const pressureStartX = frameWidth * SPAWN_FAIRNESS_TUNING.earlyLanePressureStart;
+  let topLaneThreat = false;
+  let bottomLaneThreat = false;
+
+  state.obstacles.forEach((obstacle) => {
+    if (obstacle.x < pressureStartX) {
+      return;
+    }
+    if (obstacle.lane === 0) {
+      topLaneThreat = true;
+      return;
+    }
+    bottomLaneThreat = true;
+  });
+
+  return topLaneThreat && bottomLaneThreat;
+}
+
+function canSpawnObstacleNow(frameWidth) {
+  const rightmostObstacleX = state.obstacles.reduce(
+    (maxX, obstacle) => Math.max(maxX, obstacle.x),
+    Number.NEGATIVE_INFINITY
+  );
+  if (Number.isFinite(rightmostObstacleX) && rightmostObstacleX > frameWidth - spawnLeadDistance()) {
+    return false;
+  }
+  if (hasEarlyLaneSaturation(frameWidth)) {
+    return false;
+  }
+  return true;
+}
+
+function buildObstacleElement(lane, x, classNames) {
+  const obstacle = document.createElement('div');
+  obstacle.className = 'obstacle is-entering';
+  classNames.forEach((className) => obstacle.classList.add(className));
+  obstacle.dataset.lane = String(lane);
+  obstacle.style.top = `${laneTop(lane)}px`;
+  obstacle.style.left = `${x}px`;
+  obstaclesEl.appendChild(obstacle);
+  return obstacle;
+}
+
+function addObstacleInstance(profile, lane, x, options = {}) {
+  const classNames = options.baseClasses ?? profile.baseClasses ?? [];
+  const obstacle = buildObstacleElement(lane, x, classNames);
+  const evadeCueType = options.evadeCueType ?? defaultEvadeCueType(profile.type);
+  const obstacleState = {
+    el: obstacle,
+    lane,
+    x,
+    spawnX: x,
+    age: options.age ?? 0,
+    perfectDodged: false,
+    type: options.type ?? profile.type,
+    hitHalfWidth: options.hitHalfWidth ?? profile.hitHalfWidth,
+    speedMultiplier: options.speedMultiplier ?? profile.speedMultiplier,
+    eventSpeedMultiplier:
+      options.eventSpeedMultiplier ??
+      (state.surgeSpawnTimerBoosted ? SURGE_OBSTACLE_SPEED_MULTIPLIER : 1),
+    evadeCueType,
+    evadeCueGroupId: options.evadeCueGroupId ?? null,
+    hasSwapped: Boolean(options.hasSwapped),
+    swapTelegraphed: Boolean(options.swapTelegraphed),
+    hasSplit: Boolean(options.hasSplit),
+    splitTelegraphed: Boolean(options.splitTelegraphed)
+  };
+  registerObstacleEvadeTracking(obstacleState);
+  state.obstacles.push(obstacleState);
+
+  if (options.trackSpawnType !== false) {
+    rememberSpawnType(profile.type);
+  }
+
+  return obstacleState;
+}
+
 function spawnObstacle() {
   const frameWidth = frame.getBoundingClientRect().width;
-  const lastObstacle = state.obstacles[state.obstacles.length - 1];
-  if (lastObstacle && lastObstacle.x > frameWidth - Math.max(140, state.speed * 0.42)) {
+  if (!canSpawnObstacleNow(frameWidth)) {
     return false;
   }
 
   const profile = pickObstacleProfile();
-  const obstacle = document.createElement('div');
-  obstacle.className = 'obstacle is-entering';
-  if (profile.type === 'heavy') {
-    obstacle.classList.add('is-heavy', 'is-telegraph');
-  }
   const lane = pickLane();
-  const y = laneTop(lane);
-  obstacle.dataset.lane = String(lane);
-  obstacle.style.top = `${y}px`;
-  obstacle.style.left = '100%';
-  obstaclesEl.appendChild(obstacle);
-  state.obstacles.push({
-    el: obstacle,
-    lane,
-    x: frameWidth + 20,
-    age: 0,
-    perfectDodged: false,
-    type: profile.type,
-    hitHalfWidth: profile.hitHalfWidth,
-    speedMultiplier: profile.speedMultiplier,
-    eventSpeedMultiplier: state.surgeSpawnTimerBoosted ? SURGE_OBSTACLE_SPEED_MULTIPLIER : 1
-  });
-  state.recentSpawnTypes.push(profile.type);
-  if (state.recentSpawnTypes.length > HEAVY_OBSTACLE_COLLAPSE_RECENT_WINDOW) {
-    state.recentSpawnTypes.shift();
-  }
+  addObstacleInstance(profile, lane, frameWidth + 20);
   return true;
+}
+
+function obstacleTravelProgress(obstacle, playerX) {
+  const totalTravelDistance = Math.max(1, obstacle.spawnX - playerX);
+  return clamp((obstacle.spawnX - obstacle.x) / totalTravelDistance, 0, 1);
+}
+
+function updatePhantomObstacle(obstacle, playerX) {
+  if (obstacle.type !== PHANTOM_OBSTACLE_PROFILE.type || obstacle.hasSwapped) {
+    return;
+  }
+
+  const travelProgress = obstacleTravelProgress(obstacle, playerX);
+  if (!obstacle.swapTelegraphed && travelProgress >= ENEMY_VARIETY_TUNING.phantomSwapTelegraphProgress) {
+    obstacle.swapTelegraphed = true;
+    obstacle.el.classList.add('is-telegraph');
+  }
+
+  if (travelProgress >= ENEMY_VARIETY_TUNING.phantomSwapProgress) {
+    obstacle.hasSwapped = true;
+    obstacle.swapTelegraphed = false;
+    obstacle.lane = obstacle.lane === 0 ? 1 : 0;
+    obstacle.el.dataset.lane = String(obstacle.lane);
+    obstacle.el.style.top = `${laneTop(obstacle.lane)}px`;
+    obstacle.el.classList.remove('is-telegraph');
+  }
+}
+
+function splitObstacleIntoFragments(obstacle) {
+  if (obstacle.hasSplit) {
+    return;
+  }
+
+  obstacle.hasSplit = true;
+  obstacle.splitTelegraphed = false;
+  obstacle.type = 'splitter_fragment';
+  obstacle.hitHalfWidth = ENEMY_VARIETY_TUNING.splitterFragmentHitHalfWidth;
+  obstacle.speedMultiplier *= ENEMY_VARIETY_TUNING.splitterFragmentSpeedMultiplier;
+  obstacle.el.classList.remove('is-heavy', 'is-telegraph');
+  obstacle.el.classList.add('is-entering');
+
+  const splitLane = obstacle.lane === 0 ? 1 : 0;
+  const splitChildX = obstacle.x + ENEMY_VARIETY_TUNING.splitterChildOffset;
+  addObstacleInstance(SPLITTER_OBSTACLE_PROFILE, splitLane, splitChildX, {
+    type: 'splitter_fragment',
+    hitHalfWidth: ENEMY_VARIETY_TUNING.splitterFragmentHitHalfWidth,
+    speedMultiplier: obstacle.speedMultiplier,
+    eventSpeedMultiplier: obstacle.eventSpeedMultiplier,
+    evadeCueType: obstacle.evadeCueType,
+    evadeCueGroupId: obstacle.evadeCueGroupId,
+    baseClasses: [],
+    trackSpawnType: false
+  });
+}
+
+function updateSplitterObstacle(obstacle, playerX) {
+  if (obstacle.type !== SPLITTER_OBSTACLE_PROFILE.type || obstacle.hasSplit) {
+    return;
+  }
+
+  const travelProgress = obstacleTravelProgress(obstacle, playerX);
+  if (!obstacle.splitTelegraphed && travelProgress >= ENEMY_VARIETY_TUNING.splitterTelegraphProgress) {
+    obstacle.splitTelegraphed = true;
+    obstacle.el.classList.add('is-telegraph');
+  }
+
+  if (travelProgress >= ENEMY_VARIETY_TUNING.splitterSplitProgress) {
+    splitObstacleIntoFragments(obstacle);
+  }
+}
+
+function updateObstacleBehavior(obstacle, playerX) {
+  if (obstacle.type === PHANTOM_OBSTACLE_PROFILE.type) {
+    updatePhantomObstacle(obstacle, playerX);
+    return;
+  }
+  if (obstacle.type === SPLITTER_OBSTACLE_PROFILE.type) {
+    updateSplitterObstacle(obstacle, playerX);
+  }
 }
 
 function clamp(value, min, max) {
@@ -837,7 +1120,7 @@ function updateEventPhase(dt) {
   }
 }
 
-function pickObstacleProfile() {
+function pickBaseObstacleProfile() {
   if (state.difficultyScore < HEAVY_OBSTACLE_DIFFICULTY_THRESHOLD) {
     return NORMAL_OBSTACLE_PROFILE;
   }
@@ -845,8 +1128,7 @@ function pickObstacleProfile() {
   const isCollapse = state.eventPhase === 'Collapse';
   const recentWindow = isCollapse ? HEAVY_OBSTACLE_COLLAPSE_RECENT_WINDOW : HEAVY_OBSTACLE_RECENT_WINDOW;
   const recentCap = isCollapse ? HEAVY_OBSTACLE_COLLAPSE_RECENT_CAP : HEAVY_OBSTACLE_RECENT_CAP;
-  const recentTypes = state.recentSpawnTypes.slice(-recentWindow);
-  const heavyCount = recentTypes.filter((type) => type === HEAVY_OBSTACLE_PROFILE.type).length;
+  const heavyCount = countRecentSpawnType(HEAVY_OBSTACLE_PROFILE.type, recentWindow);
   if (heavyCount >= recentCap) {
     return NORMAL_OBSTACLE_PROFILE;
   }
@@ -864,13 +1146,76 @@ function pickObstacleProfile() {
   return Math.random() < heavyWeight ? HEAVY_OBSTACLE_PROFILE : NORMAL_OBSTACLE_PROFILE;
 }
 
+function canSpawnPhantom() {
+  if (state.eventPhase === 'Warmup') {
+    return false;
+  }
+  if (state.difficultyScore < ENEMY_VARIETY_TUNING.phantomUnlockDifficulty) {
+    return false;
+  }
+  return countRecentSpawnType(PHANTOM_OBSTACLE_PROFILE.type, ENEMY_VARIETY_TUNING.recentTypeWindow)
+    < ENEMY_VARIETY_TUNING.phantomRecentCap;
+}
+
+function canSpawnSplitter() {
+  if (state.eventPhase !== 'Overdrive' && state.eventPhase !== 'Collapse') {
+    return false;
+  }
+  if (state.difficultyScore < ENEMY_VARIETY_TUNING.splitterUnlockDifficulty) {
+    return false;
+  }
+  if (state.surgeTimer > 0) {
+    return false;
+  }
+  return countRecentSpawnType(SPLITTER_OBSTACLE_PROFILE.type, ENEMY_VARIETY_TUNING.recentTypeWindow)
+    < ENEMY_VARIETY_TUNING.splitterRecentCap;
+}
+
+function pickSpecialObstacleProfile() {
+  if (canSpawnSplitter()) {
+    const splitterProgress = progressBetween(state.difficultyScore, ENEMY_VARIETY_TUNING.splitterUnlockDifficulty, 95);
+    const splitterPhaseBonus = state.eventPhase === 'Collapse' ? 0.06 : 0.03;
+    const splitterWeight = clamp(
+      lerp(0.05, ENEMY_VARIETY_TUNING.splitterMaxWeight, splitterProgress) + splitterPhaseBonus,
+      0.05,
+      ENEMY_VARIETY_TUNING.splitterMaxWeight
+    );
+    if (Math.random() < splitterWeight) {
+      return SPLITTER_OBSTACLE_PROFILE;
+    }
+  }
+
+  if (canSpawnPhantom()) {
+    const phantomProgress = progressBetween(state.difficultyScore, ENEMY_VARIETY_TUNING.phantomUnlockDifficulty, 92);
+    const phantomPhaseBonus = state.eventPhase === 'Collapse' ? 0.05 : state.eventPhase === 'Overdrive' ? 0.03 : 0;
+    const phantomWeight = clamp(
+      lerp(0.06, ENEMY_VARIETY_TUNING.phantomMaxWeight, phantomProgress) + phantomPhaseBonus,
+      0.06,
+      ENEMY_VARIETY_TUNING.phantomMaxWeight
+    );
+    if (Math.random() < phantomWeight) {
+      return PHANTOM_OBSTACLE_PROFILE;
+    }
+  }
+
+  return null;
+}
+
+function pickObstacleProfile() {
+  const specialProfile = pickSpecialObstacleProfile();
+  if (specialProfile) {
+    return specialProfile;
+  }
+  return pickBaseObstacleProfile();
+}
+
 function pickLane() {
   if (state.lastSpawnLane === null) {
     state.lastSpawnLane = Math.random() < 0.5 ? 0 : 1;
     return state.lastSpawnLane;
   }
 
-  const baseSameLaneChance = state.difficultyScore < 10 ? 0.36 : 0.44;
+  const baseSameLaneChance = state.difficultyScore < 20 ? 0.56 : state.difficultyScore < 40 ? 0.48 : 0.44;
   const phaseLanePressure = state.eventPhase === 'Collapse' ? 0.2 : state.eventPhase === 'Overdrive' ? 0.08 : 0;
   const maxSameLaneChance = state.eventPhase === 'Collapse' ? 0.68 : 0.58;
   const sameLaneChance = clamp(baseSameLaneChance + phaseLanePressure, 0.35, maxSameLaneChance);
@@ -940,6 +1285,31 @@ function currentIntensityState() {
   };
 }
 
+function resetSurgeBurstState() {
+  state.surgeTimer = 0;
+  state.surgeBurstSpawns = 0;
+  state.surgeSpawnTimerBoosted = false;
+}
+
+function startSurgeBurst() {
+  state.surgeCooldown = SURGE_COOLDOWN;
+  state.surgeTimer = SURGE_DURATION;
+  state.surgeBurstSpawns = SURGE_BURST_SPAWNS;
+  state.surgeSpawnTimerBoosted = true;
+  showFeedback('Surge!', SURGE_DURATION * 1000);
+  state.spawnTimer = Math.max(state.spawnTimer, state.spawnDelay * SURGE_SPAWN_DELAY_MULTIPLIER);
+}
+
+function shouldStartSurgeBurst() {
+  return (
+    (state.eventPhase === 'Cruise' || state.eventPhase === 'Overdrive') &&
+    state.difficultyScore >= SURGE_UNLOCK_DIFFICULTY &&
+    state.surgeCooldown <= 0 &&
+    state.surgeTimer <= 0 &&
+    Math.random() < Math.min(0.24, 0.06 + state.difficultyScore * 0.002)
+  );
+}
+
 function loop(timestamp) {
   if (state.mode === 'countdown') {
     if (!state.lastTime) {
@@ -994,10 +1364,10 @@ function loop(timestamp) {
   state.spawnTimer += dt;
   state.surgeCooldown = Math.max(0, state.surgeCooldown - dt);
   state.surgeTimer = Math.max(0, state.surgeTimer - dt);
-  if (state.surgeTimer <= 0 || state.surgeBurstSpawns <= 0 || state.eventPhase === 'Collapse') {
-    state.surgeTimer = 0;
-    state.surgeBurstSpawns = 0;
-    state.surgeSpawnTimerBoosted = false;
+  if (state.eventPhase === 'Collapse') {
+    resetSurgeBurstState();
+  } else if (state.surgeTimer <= 0 || state.surgeBurstSpawns <= 0) {
+    resetSurgeBurstState();
   }
   scoreEl.textContent = state.score.toFixed(1);
   if (hudScrapEl) {
@@ -1020,23 +1390,11 @@ function loop(timestamp) {
     if (spawned && surgeActive) {
       state.surgeBurstSpawns -= 1;
       if (state.surgeBurstSpawns <= 0) {
-        state.surgeTimer = 0;
-        state.surgeSpawnTimerBoosted = false;
+        resetSurgeBurstState();
       }
     }
-    if (
-      spawned &&
-      (state.eventPhase === 'Cruise' || state.eventPhase === 'Overdrive') &&
-      state.difficultyScore >= SURGE_UNLOCK_DIFFICULTY &&
-      state.surgeCooldown <= 0 &&
-      Math.random() < Math.min(0.24, 0.06 + state.difficultyScore * 0.002)
-    ) {
-      state.surgeCooldown = SURGE_COOLDOWN;
-      state.surgeTimer = SURGE_DURATION;
-      state.surgeBurstSpawns = SURGE_BURST_SPAWNS;
-      state.surgeSpawnTimerBoosted = true;
-      showFeedback('Surge!', SURGE_DURATION * 1000);
-      state.spawnTimer = Math.max(state.spawnTimer, state.spawnDelay * SURGE_SPAWN_DELAY_MULTIPLIER);
+    if (spawned && shouldStartSurgeBurst()) {
+      startSurgeBurst();
     }
   }
 
@@ -1055,14 +1413,14 @@ function loop(timestamp) {
     if (obstacle.type === 'heavy' && obstacle.age > 0.22) {
       obstacle.el.classList.remove('is-telegraph');
     }
+    updateObstacleBehavior(obstacle, playerX);
 
     const obstacleX = obstacle.x;
     const collisionDistance = 10 + obstacle.hitHalfWidth;
     if (state.graceTime <= 0 && obstacle.lane === state.lane && Math.abs(obstacleX - playerX) <= collisionDistance) {
       if (state.runShieldCharges > 0) {
         state.runShieldCharges -= 1;
-        obstacle.el.remove();
-        state.obstacles.splice(i, 1);
+        removeObstacleAt(i, false);
         showFeedback(`Shield Block (${state.runShieldCharges} left)`);
         renderUpgrades();
         continue;
@@ -1072,8 +1430,7 @@ function loop(timestamp) {
     }
 
     if (obstacle.x < -40) {
-      obstacle.el.remove();
-      state.obstacles.splice(i, 1);
+      removeObstacleAt(i, true);
     }
   }
 
