@@ -12,6 +12,8 @@ const countdownEl = document.getElementById('countdown');
 const playerNameEl = document.getElementById('player-name');
 const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
+const scoreboardToggleButton = document.getElementById('scoreboard-toggle');
+const scoreboardBodyEl = document.getElementById('scoreboard-body');
 const feedbackEl = document.getElementById('feedback');
 const frame = document.querySelector('.game-frame');
 const hudScrapEl = document.getElementById('hud-scrap');
@@ -27,6 +29,10 @@ const shieldLevelEl = document.getElementById('shield-level');
 const buyFlowButton = document.getElementById('buy-flow');
 const buyShieldButton = document.getElementById('buy-shield');
 const upgradeStatusEl = document.getElementById('upgrade-status');
+const upgradesToggleButton = document.getElementById('upgrades-toggle');
+const upgradesBodyEl = document.getElementById('upgrades-body');
+const mobilePanelQuery = window.matchMedia('(max-width: 640px)');
+let mobilePanelMode = null;
 
 const STORAGE_KEY = 'drift-best-score';
 const PROGRESS_STORAGE_KEY = 'drift-progress';
@@ -260,6 +266,7 @@ resetProgressionUi();
 renderLeaderboard();
 positionPlayer();
 renderUpgrades();
+syncMobilePanels(true);
 rollPerkChoices();
 renderPerkChoices();
 
@@ -289,6 +296,34 @@ function setMode(mode) {
   overlayStart.classList.toggle('is-visible', mode === 'start' || mode === 'countdown');
   overlayOver.classList.toggle('is-visible', mode === 'gameover');
   renderUpgrades();
+}
+
+function setMobilePanelState(panelBody, button, expanded) {
+  if (!panelBody || !button) {
+    return;
+  }
+
+  panelBody.classList.toggle('is-open', expanded);
+  button.setAttribute('aria-expanded', String(expanded));
+  button.textContent = expanded ? 'Hide' : 'Show';
+}
+
+function syncMobilePanels(forceDefault = false) {
+  const isMobile = mobilePanelQuery.matches;
+  const isInitialMobile = mobilePanelMode === null && isMobile;
+  const enteredMobile = mobilePanelMode === false && isMobile;
+
+  if (isMobile) {
+    if (forceDefault || isInitialMobile || enteredMobile) {
+      setMobilePanelState(scoreboardBodyEl, scoreboardToggleButton, false);
+      setMobilePanelState(upgradesBodyEl, upgradesToggleButton, false);
+    }
+  } else {
+    setMobilePanelState(scoreboardBodyEl, scoreboardToggleButton, true);
+    setMobilePanelState(upgradesBodyEl, upgradesToggleButton, true);
+  }
+
+  mobilePanelMode = isMobile;
 }
 
 function currentPerk() {
@@ -1081,8 +1116,23 @@ playerNameEl.addEventListener('keydown', (event) => {
 startButton.addEventListener('click', startGame);
 buyFlowButton.addEventListener('click', () => purchaseUpgrade('flow'));
 buyShieldButton.addEventListener('click', () => purchaseUpgrade('shield'));
+scoreboardToggleButton?.addEventListener('click', () => {
+  if (!mobilePanelQuery.matches || !scoreboardBodyEl) {
+    return;
+  }
+  const expanded = !scoreboardBodyEl.classList.contains('is-open');
+  setMobilePanelState(scoreboardBodyEl, scoreboardToggleButton, expanded);
+});
+upgradesToggleButton?.addEventListener('click', () => {
+  if (!mobilePanelQuery.matches || !upgradesBodyEl) {
+    return;
+  }
+  const expanded = !upgradesBodyEl.classList.contains('is-open');
+  setMobilePanelState(upgradesBodyEl, upgradesToggleButton, expanded);
+});
 
 window.addEventListener('resize', () => {
+  syncMobilePanels();
   positionPlayer();
   state.obstacles.forEach((obstacle) => {
     obstacle.el.style.top = `${laneTop(obstacle.lane)}px`;
