@@ -10,13 +10,18 @@
 <body>
   <main class="shell">
     <div class="layout">
-      <aside class="scoreboard" aria-label="Top scores">
+      <aside class="scoreboard mobile-collapsible" aria-label="Top scores">
         <div class="scoreboard-head">
-          <div class="label">Top 10</div>
-          <div class="scoreboard-sub">Best runs</div>
+          <div class="scoreboard-head-copy">
+            <div class="label">Top 10</div>
+            <div class="scoreboard-sub">Best runs</div>
+          </div>
+          <button id="scoreboard-toggle" class="mobile-panel-toggle" type="button" aria-expanded="false" aria-controls="scoreboard-body">Show</button>
         </div>
-        <div id="scoreboard-status" class="scoreboard-status"></div>
-        <ol id="scoreboard-list" class="scoreboard-list"></ol>
+        <div id="scoreboard-body" class="scoreboard-body">
+          <div id="scoreboard-status" class="scoreboard-status"></div>
+          <ol id="scoreboard-list" class="scoreboard-list"></ol>
+        </div>
       </aside>
 
       <section class="game-column" aria-label="Game area">
@@ -93,25 +98,30 @@
         </section>
       </section>
 
-      <aside class="upgrades" aria-label="Permanent upgrades">
+      <aside class="upgrades mobile-collapsible" aria-label="Permanent upgrades">
         <div class="scoreboard-head upgrades-head">
-          <div class="label">Upgrades</div>
-          <div class="scoreboard-sub">Permanent progression</div>
+          <div class="scoreboard-head-copy">
+            <div class="label">Upgrades</div>
+            <div class="scoreboard-sub">Permanent progression</div>
+          </div>
+          <button id="upgrades-toggle" class="mobile-panel-toggle" type="button" aria-expanded="false" aria-controls="upgrades-body">Show</button>
         </div>
-        <div class="upgrade-points">Scrap: <span id="upgrade-points">0</span></div>
-        <div class="upgrade-list">
-          <article class="upgrade-item">
-            <div class="upgrade-title">Flow <span id="flow-level" class="upgrade-level">Lv 0</span></div>
-            <p>Improves passive score gain with a small multiplier boost.</p>
-            <button id="buy-flow" class="button button-secondary upgrade-button" type="button">Buy Flow</button>
-          </article>
-          <article class="upgrade-item">
-            <div class="upgrade-title">Shield <span id="shield-level" class="upgrade-level">Lv 0</span></div>
-            <p>Adds one extra hit block per level at the start of each run.</p>
-            <button id="buy-shield" class="button button-secondary upgrade-button" type="button">Buy Shield</button>
-          </article>
+        <div id="upgrades-body" class="upgrades-body">
+          <div class="upgrade-points">Scrap: <span id="upgrade-points">0</span></div>
+          <div class="upgrade-list">
+            <article class="upgrade-item">
+              <div class="upgrade-title">Flow <span id="flow-level" class="upgrade-level">Lv 0</span></div>
+              <p>Improves passive score gain with a small multiplier boost.</p>
+              <button id="buy-flow" class="button button-secondary upgrade-button" type="button">Buy Flow</button>
+            </article>
+            <article class="upgrade-item">
+              <div class="upgrade-title">Shield <span id="shield-level" class="upgrade-level">Lv 0</span></div>
+              <p>Adds one extra hit block per level at the start of each run.</p>
+              <button id="buy-shield" class="button button-secondary upgrade-button" type="button">Buy Shield</button>
+            </article>
+          </div>
+          <div id="upgrade-status" class="upgrade-status" aria-live="polite"></div>
         </div>
-        <div id="upgrade-status" class="upgrade-status" aria-live="polite"></div>
       </aside>
     </div>
   </main>
