@@ -225,8 +225,8 @@ button {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  min-height: 620px;
-  max-height: 88vh;
+  min-height: 700px;
+  max-height: 92vh;
   border: 1px solid var(--line);
   border-radius: 28px;
   overflow: hidden;
@@ -420,10 +420,10 @@ button {
 }
 
 #overlay-over {
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-start;
-  padding-top: 34px;
-  padding-bottom: 24px;
+  padding-top: 22px;
+  padding-bottom: 16px;
 }
 
 .panel-stack {
