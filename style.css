@@ -563,10 +563,22 @@ button {
   outline-offset: 2px;
 }
 
+.save-status {
+  margin: 4px 0 0;
+  min-height: 1.2rem;
+  font-size: 0.92rem;
+  opacity: 0.8;
+}
+
 .hint {
   margin-top: 14px;
   font-size: 0.88rem;
   opacity: 0.6;
+}
+
+.overlay.is-saved .name-field,
+.overlay.is-saved #save-score-button {
+  display: none;
 }
 
 

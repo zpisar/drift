@@ -16,7 +16,7 @@
             <div class="label">Top 10</div>
             <div class="scoreboard-sub">Best runs</div>
           </div>
-          <button id="scoreboard-toggle" class="mobile-panel-toggle" type="button" aria-expanded="false" aria-controls="scoreboard-body">Show</button>
+          <button id="scoreboard-toggle" class="mobile-panel-toggle" type="button" aria-expanded="false" aria-controls="scoreboard-body" data-closed-label="Show Top 10" data-open-label="Hide Top 10">Show Top 10</button>
         </div>
         <div id="scoreboard-body" class="scoreboard-body">
           <div id="scoreboard-status" class="scoreboard-status"></div>
@@ -90,6 +90,7 @@
               <span>Name</span>
               <input id="player-name" type="text" maxlength="16" placeholder="Your name">
             </label>
+            <p id="save-status" class="save-status" aria-live="polite" hidden></p>
             <div class="overlay-actions">
               <button id="save-score-button" class="button" type="button">Save Score</button>
               <button id="restart-button" class="button button-secondary" type="button">Restart</button>
@@ -104,7 +105,7 @@
             <div class="label">Upgrades</div>
             <div class="scoreboard-sub">Permanent progression</div>
           </div>
-          <button id="upgrades-toggle" class="mobile-panel-toggle" type="button" aria-expanded="false" aria-controls="upgrades-body">Show</button>
+          <button id="upgrades-toggle" class="mobile-panel-toggle" type="button" aria-expanded="false" aria-controls="upgrades-body" data-closed-label="Show Upgrades" data-open-label="Hide Upgrades">Show Upgrades</button>
         </div>
         <div id="upgrades-body" class="upgrades-body">
           <div class="upgrade-points">Scrap: <span id="upgrade-points">0</span></div>
