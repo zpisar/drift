@@ -30,7 +30,7 @@ button {
 }
 
 .shell {
-  width: min(1120px, 100%);
+  width: min(1500px, 100%);
   display: grid;
   place-items: center;
 }
@@ -38,21 +38,21 @@ button {
 .layout {
   display: grid;
   width: 100%;
-  max-width: 860px;
-  grid-template-columns: 1fr;
-  gap: 22px;
-  align-items: center;
-  justify-content: center;
+  max-width: 1420px;
+  grid-template-columns: minmax(220px, 280px) minmax(680px, 1fr) minmax(220px, 280px);
+  gap: 18px;
+  align-items: stretch;
 }
 
 .game-column {
   display: grid;
-  gap: 18px;
+  gap: 14px;
   width: 100%;
 }
 
-.scoreboard {
-  width: min(520px, 100%);
+.scoreboard,
+.upgrades {
+  width: 100%;
   border: 1px solid var(--line);
   border-radius: 22px;
   padding: 18px;
@@ -88,9 +88,8 @@ button {
 }
 
 .upgrades {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(21, 21, 21, 0.1);
+  display: grid;
+  align-content: start;
 }
 
 .upgrades-head {
@@ -226,8 +225,8 @@ button {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  min-height: 420px;
-  max-height: 78vh;
+  min-height: 700px;
+  max-height: 92vh;
   border: 1px solid var(--line);
   border-radius: 28px;
   overflow: hidden;
@@ -337,8 +336,10 @@ button {
   justify-content: center;
   text-align: center;
   max-height: 100%;
+  gap: 14px;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
   padding: 30px 28px 34px;
   background: rgba(247, 244, 237, 0.74);
   backdrop-filter: blur(1px);
@@ -407,13 +408,9 @@ button {
 
 .overlay-actions {
   width: min(100%, 18rem);
-  margin-top: auto;
-  padding-top: 14px;
-  position: sticky;
-  bottom: 0;
+  margin-top: 10px;
   display: grid;
   gap: 10px;
-  background: linear-gradient(to bottom, rgba(247, 244, 237, 0), rgba(247, 244, 237, 0.9) 28%, rgba(247, 244, 237, 0.95));
 }
 
 .overlay-actions .button {
@@ -422,10 +419,13 @@ button {
 }
 
 #overlay-over {
-  gap: 10px;
-  justify-content: flex-start;
-  padding-top: 34px;
-  padding-bottom: 24px;
+  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding-top: 22px;
+  padding-bottom: 56px;
 }
 
 .panel-stack {
@@ -433,6 +433,9 @@ button {
   display: grid;
   gap: 10px;
   margin-top: 14px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .panel-card {
@@ -514,6 +517,7 @@ button {
   display: grid;
   gap: 8px;
   margin-top: 16px;
+  margin-bottom: 12px;
   width: min(100%, 18rem);
   text-align: left;
 }
@@ -550,6 +554,20 @@ button {
   opacity: 0.6;
 }
 
+
+
+@media (max-width: 1180px) {
+  .layout {
+    grid-template-columns: 1fr;
+    max-width: 920px;
+    gap: 16px;
+  }
+
+  .scoreboard,
+  .upgrades {
+    max-width: 100%;
+  }
+}
 
 @media (max-height: 800px) {
   #overlay-over {
