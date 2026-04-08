@@ -1082,6 +1082,13 @@ button {
 
   .panel-card.is-perks {
     grid-area: perks;
+    min-height: 0;
+    height: auto;
+  }
+
+  .panel-card.is-perks .perk-choices {
+    max-height: none;
+    overflow: visible;
   }
 
   .perk-list {
