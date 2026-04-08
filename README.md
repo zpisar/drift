@@ -23,7 +23,7 @@ Play in your browser through GitHub Pages:
 - `Score`: current run score.
 - `Scrap`: Scrap earned this run. You earn `1 Scrap every 20 score`.
 - `Shields`: current run shield charges.
-- `Active Perk`: currently active run perk (hover on desktop / tap on mobile for tooltip copy).
+- `Active Perk`: currently active run perk (hover on desktop / tap on mobile for tooltip copy). Shows `(Charged)` while Paradox Lens is armed.
 - `Event`: current world state (`Warmup`, `Cruise`, `Overdrive`, `Collapse`).
 - `Best`: best locally saved score.
 
@@ -70,9 +70,16 @@ Current perk pool:
 - `Tempo - Afterburn Rhythm`: perfect dodges trigger short rhythm windows with slower spawns.
 - `Tempo - Chaos Reactor`: extreme base speed pressure, tighter dodge timing, and powerful slowdown pulse on perfect dodges.
 - `Precision - Deadeye Line`: wider perfect-dodge window and extra dodge score with lower passive gain.
-- `Precision - Paradox Lens`: perfect dodges charge a short paradox window; your next switch rewinds the closest threat and grants bonus score.
+- `Precision - Paradox Lens`: perfect dodges charge your next lane switch. The next switch triggers a `Lane Blast` in the destination lane, consumes the charge, destroys up to 2 nearest incoming threats, and applies a short lane-only slow (`0.85x` for `1.0s`).
 - `Safety - Guardrail Protocol`: +1 starting shield with calmer pace and lower perfect-dodge reward.
 - `Safety - Emergency Stasis`: +2 starting shields with stronger slowdown pulse behavior, balanced by weaker economy tempo.
+
+Paradox Lens feedback flow:
+
+- `Paradox Charged!`: charge armed for 3.0s after a perfect dodge.
+- `Lane Blast xN! +X.X`: blast hit and bonus score awarded once.
+- `Lane Blast Missed`: charge spent on switch but no valid targets in destination lane.
+- `Paradox Faded`: charge expired before use.
 
 ## Events
 
