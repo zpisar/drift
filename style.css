@@ -346,6 +346,43 @@ button {
   transform: translateX(-50%) translateY(-4px);
 }
 
+.pause-toggle {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 4;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(21, 21, 21, 0.32);
+  background: rgba(247, 244, 237, 0.88);
+  color: var(--ink);
+  font-size: 0.92rem;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.pause-toggle:hover {
+  transform: translateY(-1px);
+  border-color: rgba(21, 21, 21, 0.5);
+}
+
+.pause-toggle:active {
+  transform: translateY(0);
+}
+
+.pause-toggle:focus-visible {
+  outline: 2px solid rgba(21, 21, 21, 0.2);
+  outline-offset: 3px;
+}
+
 .player,
 .obstacle {
   position: absolute;
@@ -1011,6 +1048,13 @@ button {
     min-height: 100dvh;
     padding: 12px;
     touch-action: manipulation;
+  }
+
+  .pause-toggle {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: 42px;
+    height: 42px;
   }
 
   .layout {
