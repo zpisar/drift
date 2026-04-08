@@ -9,6 +9,7 @@ const startButton = document.getElementById('start-button');
 const saveScoreButton = document.getElementById('save-score-button');
 const restartButton = document.getElementById('restart-button');
 const countdownEl = document.getElementById('countdown');
+const pauseButton = document.getElementById('pause-button');
 const playerNameEl = document.getElementById('player-name');
 const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
@@ -452,6 +453,7 @@ resetProgressionUi();
 renderLeaderboard();
 positionPlayer();
 renderUpgrades();
+syncPauseButton();
 syncMobilePanels(true);
 
 function createSupabaseClient() {
@@ -479,9 +481,24 @@ function setMode(mode) {
   state.mode = mode;
   overlayStart.classList.toggle('is-visible', mode === 'start' || mode === 'countdown');
   overlayOver.classList.toggle('is-visible', mode === 'gameover');
+  syncPauseButton();
   syncHyperdriveVisualState();
   syncParadoxChargeState();
   renderUpgrades();
+}
+
+function syncPauseButton() {
+  if (!pauseButton) {
+    return;
+  }
+  const isVisible = state.mode === 'playing' || state.mode === 'paused';
+  pauseButton.hidden = !isVisible;
+  if (!isVisible) {
+    return;
+  }
+  const isPaused = state.mode === 'paused';
+  pauseButton.textContent = isPaused ? '▶' : 'II';
+  pauseButton.setAttribute('aria-label', isPaused ? 'Resume game' : 'Pause game');
 }
 
 function setMobilePanelState(panelRoot, button, expanded) {
@@ -963,6 +980,20 @@ async function submitScore() {
 
 function canControlGameplay() {
   return state.mode === 'playing';
+}
+
+function togglePause() {
+  if (state.mode === 'playing') {
+    setMode('paused');
+    showFeedback('Paused', 760);
+    return;
+  }
+  if (state.mode === 'paused') {
+    setMode('playing');
+    state.lastTime = 0;
+    showFeedback('Resumed', 620);
+    requestAnimationFrame(loop);
+  }
 }
 
 function flashScoreLabel() {
@@ -1905,10 +1936,18 @@ frame.addEventListener('pointerdown', (event) => {
   if (!canControlGameplay()) {
     return;
   }
+  if (event.target.closest('#pause-button')) {
+    return;
+  }
   if (event.target.closest('.overlay')) {
     return;
   }
   toggleLane();
+});
+pauseButton?.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  togglePause();
 });
 hudPerkItemEl?.addEventListener('pointerdown', (event) => {
   const hasHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
