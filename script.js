@@ -60,6 +60,10 @@ const SURGE_DURATION = 2;
 const SURGE_BURST_SPAWNS = 3;
 const SURGE_SPAWN_DELAY_MULTIPLIER = 0.45;
 const SURGE_OBSTACLE_SPEED_MULTIPLIER = 1.35;
+const PARADOX_BLAST_MAX_TARGETS = 2;
+const PARADOX_LANE_SLOW_DURATION = 1.0;
+const PARADOX_LANE_SLOW_MULTIPLIER = 0.85;
+const PARADOX_BLAST_HIT_DURATION = 0.14;
 // Gameplay tuning grouped for quick balancing passes.
 const SPAWN_FAIRNESS_TUNING = Object.freeze({
   earlyWindowDifficulty: 20,
@@ -89,6 +93,7 @@ const EVADE_FEEDBACK_TUNING = Object.freeze({
   splitter: 'Splitter evaded!',
   duration: 620
 });
+const FEEDBACK_DURATION_MULTIPLIER = 1.2;
 const UPGRADE_COSTS = Object.freeze({
   flow: [3, 5, 8, 11, 16, 22],
   shield: [2, 4, 7, 10, 14, 19],
@@ -155,7 +160,7 @@ const RUN_PERKS = [
     id: 'precision_paradox_lens',
     family: 'Precision',
     name: 'Paradox Lens',
-    description: 'Perfect dodges charge a paradox window. Your next lane switch sends a wave that pushes threats in that lane back and grants a precision jackpot.',
+    description: 'Perfect dodges charge your next lane switch. That switch blasts the destination lane.',
     perfectDodgeBonus: 0.35,
     baseSpeedOffset: 0,
     flowMultiplierOffset: -0.05,
@@ -407,6 +412,11 @@ const state = {
   surgeSpawnTimerBoosted: false,
   scannerCueCooldown: 0,
   paradoxChargeVisualActive: false,
+  paradoxLaneSlow: {
+    lane: null,
+    timer: 0,
+    multiplier: 1
+  },
   lastPerkOfferKey: null,
   nextEvadeGroupId: 1,
   evadeGroupRemaining: {}
@@ -699,6 +709,7 @@ function resetGame() {
   state.surgeSpawnTimerBoosted = false;
   state.precisionParadoxTimer = 0;
   state.scannerCueCooldown = 0;
+  state.paradoxLaneSlow = { lane: null, timer: 0, multiplier: 1 };
   state.nextEvadeGroupId = 1;
   state.evadeGroupRemaining = {};
   state.latestSubmittedScore = loadLatestScore();
@@ -899,6 +910,7 @@ function flashScoreLabel() {
 }
 
 function showFeedback(message, duration = 560) {
+  const scaledDuration = Math.max(140, Math.round(duration * FEEDBACK_DURATION_MULTIPLIER));
   feedbackEl.textContent = message;
   feedbackEl.classList.remove('is-visible');
   clearTimeout(state.feedbackTimeout);
@@ -907,7 +919,7 @@ function showFeedback(message, duration = 560) {
   });
   state.feedbackTimeout = setTimeout(() => {
     feedbackEl.classList.remove('is-visible');
-  }, duration);
+  }, scaledDuration);
 }
 
 function triggerCountdownPop() {
@@ -952,44 +964,52 @@ function awardPerfectDodge() {
 }
 
 function triggerPrecisionParadox() {
-  if (state.precisionParadoxTimer <= 0 || state.runPerkState.paradoxRewindDistance <= 0) {
+  if (state.precisionParadoxTimer <= 0) {
     return;
   }
+  state.precisionParadoxTimer = 0;
+  syncParadoxChargeState();
 
   const playerRect = playerEl.getBoundingClientRect();
   const frameRect = frame.getBoundingClientRect();
   const playerX = playerRect.left - frameRect.left + playerRect.width / 2;
 
-  const targets = state.obstacles.filter((obstacle) => {
-    if (obstacle.lane !== state.lane) {
-      return false;
-    }
-    const laneDistance = obstacle.x - playerX;
-    return laneDistance >= -24;
-  });
+  const targets = state.obstacles
+    .filter((obstacle) => {
+      if (obstacle.lane !== state.lane || obstacle.blastTimer > 0) {
+        return false;
+      }
+      const laneDistance = obstacle.x - playerX;
+      return laneDistance >= -24;
+    })
+    .sort((a, b) => (a.x - playerX) - (b.x - playerX))
+    .slice(0, PARADOX_BLAST_MAX_TARGETS);
+
+  state.paradoxLaneSlow = {
+    lane: state.lane,
+    timer: PARADOX_LANE_SLOW_DURATION,
+    multiplier: PARADOX_LANE_SLOW_MULTIPLIER
+  };
 
   if (targets.length === 0) {
+    showFeedback('Lane Blast Missed', 760);
     return;
   }
 
-  const rewindDistance = state.runPerkState.paradoxRewindDistance;
   targets.forEach((targetObstacle) => {
-    targetObstacle.x += rewindDistance;
-    targetObstacle.spawnX = Math.max(targetObstacle.spawnX, targetObstacle.x);
-    targetObstacle.el.style.left = `${targetObstacle.x}px`;
+    targetObstacle.blastTimer = PARADOX_BLAST_HIT_DURATION;
     targetObstacle.swapTelegraphed = false;
     targetObstacle.splitTelegraphed = false;
+    targetObstacle.el.classList.remove('is-entering');
     targetObstacle.el.classList.remove('is-telegraph');
+    targetObstacle.el.classList.add('is-paradox-blast');
   });
-
-  state.precisionParadoxTimer = 0;
-  syncParadoxChargeState();
 
   const paradoxBonus = state.runPerkState.paradoxBonusScore;
   state.score += paradoxBonus;
   scoreEl.textContent = state.score.toFixed(1);
   flashScoreLabel();
-  showFeedback(`Paradox Wave! +${paradoxBonus.toFixed(1)}`, 800);
+  showFeedback(`Lane Blast x${targets.length}! +${paradoxBonus.toFixed(1)}`, 820);
 }
 
 function checkPerfectDodge(previousLane) {
@@ -1023,8 +1043,8 @@ function toggleLane() {
     playerEl.classList.remove('is-switching');
   }, 110);
   if (previousLane !== state.lane) {
-    checkPerfectDodge(previousLane);
     triggerPrecisionParadox();
+    checkPerfectDodge(previousLane);
   }
 }
 
@@ -1191,6 +1211,7 @@ function addObstacleInstance(profile, lane, x, options = {}) {
       (state.surgeSpawnTimerBoosted ? SURGE_OBSTACLE_SPEED_MULTIPLIER : 1),
     evadeCueType,
     evadeCueGroupId: options.evadeCueGroupId ?? null,
+    blastTimer: options.blastTimer ?? 0,
     hasSwapped: Boolean(options.hasSwapped),
     swapTelegraphed: Boolean(options.swapTelegraphed),
     hasSplit: Boolean(options.hasSplit),
@@ -1658,6 +1679,13 @@ function loop(timestamp) {
     showFeedback('Paradox Faded', 700);
   }
   syncParadoxChargeState();
+  if (state.paradoxLaneSlow.timer > 0) {
+    state.paradoxLaneSlow.timer = Math.max(0, state.paradoxLaneSlow.timer - dt);
+    if (state.paradoxLaneSlow.timer <= 0) {
+      state.paradoxLaneSlow.lane = null;
+      state.paradoxLaneSlow.multiplier = 1;
+    }
+  }
   state.scannerCueCooldown = Math.max(0, state.scannerCueCooldown - dt);
   if (state.eventPhase === 'Collapse') {
     resetSurgeBurstState();
@@ -1699,8 +1727,19 @@ function loop(timestamp) {
 
   for (let i = state.obstacles.length - 1; i >= 0; i -= 1) {
     const obstacle = state.obstacles[i];
+    if (obstacle.blastTimer > 0) {
+      obstacle.blastTimer = Math.max(0, obstacle.blastTimer - dt);
+      if (obstacle.blastTimer <= 0) {
+        removeObstacleAt(i, false);
+      }
+      continue;
+    }
     obstacle.age += dt;
-    obstacle.x -= state.speed * obstacle.speedMultiplier * obstacle.eventSpeedMultiplier * dt;
+    const laneSlowMultiplier =
+      state.paradoxLaneSlow.timer > 0 && obstacle.lane === state.paradoxLaneSlow.lane
+        ? state.paradoxLaneSlow.multiplier
+        : 1;
+    obstacle.x -= state.speed * obstacle.speedMultiplier * obstacle.eventSpeedMultiplier * laneSlowMultiplier * dt;
     obstacle.el.style.left = `${obstacle.x}px`;
     if (obstacle.age > 0.08) {
       obstacle.el.classList.remove('is-entering');
