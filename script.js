@@ -19,6 +19,7 @@ const frame = document.querySelector('.game-frame');
 const hudScrapEl = document.getElementById('hud-scrap');
 const hudShieldsEl = document.getElementById('hud-shields');
 const hudPerkEl = document.getElementById('hud-perk');
+const hudPerkItemEl = document.querySelector('.hud-item-perk');
 const runScrapEarnedEl = document.getElementById('run-scrap-earned');
 const hudEventEl = document.getElementById('hud-event');
 const perkInfoCopyEl = document.getElementById('perk-info-copy');
@@ -26,14 +27,18 @@ const perkChoicesEl = document.getElementById('perk-choices');
 const upgradePointsEl = document.getElementById('upgrade-points');
 const flowLevelEl = document.getElementById('flow-level');
 const shieldLevelEl = document.getElementById('shield-level');
+const scannerLevelEl = document.getElementById('scanner-level');
 const buyFlowButton = document.getElementById('buy-flow');
 const buyShieldButton = document.getElementById('buy-shield');
+const buyScannerButton = document.getElementById('buy-scanner');
+const upgradesSubcopyEl = document.getElementById('upgrades-subcopy');
 const upgradeStatusEl = document.getElementById('upgrade-status');
 const upgradesToggleButton = document.getElementById('upgrades-toggle');
 const upgradesPanelEl = document.querySelector('.upgrades.mobile-collapsible');
 const saveStatusEl = document.getElementById('save-status');
 const mobilePanelQuery = window.matchMedia('(max-width: 640px)');
 let mobilePanelMode = null;
+let lastPerkTooltipAt = 0;
 
 const STORAGE_KEY = 'drift-best-score';
 const PROGRESS_STORAGE_KEY = 'drift-progress';
@@ -41,7 +46,8 @@ const PROGRESS_SCHEMA_VERSION = 1;
 const UPGRADE_KEY = 'drift-upgrades-v02';
 const LATEST_SCORE_KEY = 'drift-latest-score-v01';
 const LEADERBOARD_LIMIT = 10;
-const UPGRADE_POINT_STEP = 8;
+const UPGRADE_POINT_STEP = 20;
+const UPGRADE_SCRAP_PER_STEP = 1;
 const MAX_UPGRADE_LEVEL = 6;
 const BASE_SPEED = 156;
 const MIN_SPEED = 96;
@@ -84,9 +90,15 @@ const EVADE_FEEDBACK_TUNING = Object.freeze({
   duration: 620
 });
 const UPGRADE_COSTS = Object.freeze({
-  flow: [2, 3, 5, 7, 10, 14],
-  shield: [2, 4, 6, 9, 12, 16]
+  flow: [3, 5, 8, 11, 16, 22],
+  shield: [2, 4, 7, 10, 14, 19],
+  scanner: [3, 5, 8, 11, 15, 20]
 });
+const UPGRADE_DEFS = Object.freeze([
+  { id: 'flow', levelEl: flowLevelEl, buttonEl: buyFlowButton, maxLabel: 'Flow Maxed', buyLabel: 'Buy Flow' },
+  { id: 'shield', levelEl: shieldLevelEl, buttonEl: buyShieldButton, maxLabel: 'Shield Maxed', buyLabel: 'Buy Shield' },
+  { id: 'scanner', levelEl: scannerLevelEl, buttonEl: buyScannerButton, maxLabel: 'Scanner Maxed', buyLabel: 'Buy Scanner' }
+]);
 const PHASE_DURATIONS = Object.freeze({
   Cruise: [8, 12],
   Overdrive: [12, 18],
@@ -98,25 +110,91 @@ const DEFAULT_PROGRESS = Object.freeze({
 });
 const RUN_PERKS = [
   {
-    id: 'precision_drift',
-    name: 'Precision Drift',
-    description: 'Perfect dodges grant +1.0 bonus score this run.',
-    perfectDodgeBonus: 1,
-    baseSpeedOffset: 0
+    id: 'tempo_afterburn',
+    family: 'Tempo',
+    name: 'Afterburn Rhythm',
+    description: 'Perfect dodges trigger short rhythm windows with slower spawns.',
+    perfectDodgeBonus: 0.35,
+    baseSpeedOffset: 0,
+    flowMultiplierOffset: 0,
+    perfectDodgeWindowBonus: 0,
+    startingShieldBonus: 0,
+    tempoWindowDuration: 1.3,
+    tempoSpawnDelayMultiplier: 1.16,
+    tempoSpeedOffset: 12
   },
   {
-    id: 'soft_launch',
-    name: 'Soft Launch',
-    description: 'Start the run with -26 base speed for readability.',
-    perfectDodgeBonus: 0,
-    baseSpeedOffset: -26
+    id: 'precision_deadeye',
+    family: 'Precision',
+    name: 'Deadeye Line',
+    description: 'Wider perfect-dodge window and extra dodge score, but lower passive gain.',
+    perfectDodgeBonus: 0.75,
+    baseSpeedOffset: 0,
+    flowMultiplierOffset: -0.08,
+    perfectDodgeWindowBonus: 24,
+    startingShieldBonus: 0,
+    tempoWindowDuration: 0,
+    tempoSpawnDelayMultiplier: 1,
+    tempoSpeedOffset: 0
   },
   {
-    id: 'pulse_step',
-    name: 'Pulse Step',
-    description: 'Perfect dodges grant +0.6, but base speed is +12.',
-    perfectDodgeBonus: 0.6,
-    baseSpeedOffset: 12
+    id: 'safety_guardrail',
+    family: 'Safety',
+    name: 'Guardrail Protocol',
+    description: 'Begin each run with +1 shield and calmer pace, but weaker perfect-dodge rewards.',
+    perfectDodgeBonus: -0.15,
+    baseSpeedOffset: -12,
+    flowMultiplierOffset: -0.03,
+    perfectDodgeWindowBonus: 8,
+    startingShieldBonus: 1,
+    tempoWindowDuration: 0,
+    tempoSpawnDelayMultiplier: 1,
+    tempoSpeedOffset: 0
+  },
+  {
+    id: 'precision_paradox_lens',
+    family: 'Precision',
+    name: 'Paradox Lens',
+    description: 'Perfect dodges charge a paradox window. Your next lane switch sends a wave that pushes threats in that lane back and grants a precision jackpot.',
+    perfectDodgeBonus: 0.35,
+    baseSpeedOffset: 0,
+    flowMultiplierOffset: -0.05,
+    perfectDodgeWindowBonus: 14,
+    startingShieldBonus: 0,
+    tempoWindowDuration: 0,
+    tempoSpawnDelayMultiplier: 1,
+    tempoSpeedOffset: 0,
+    paradoxWindowDuration: 3.0,
+    paradoxRewindDistance: 220,
+    paradoxBonusScore: 1.3
+  },
+  {
+    id: 'tempo_chaos_reactor',
+    family: 'Tempo',
+    name: 'Chaos Reactor',
+    description: 'Extremely high base speed and tighter dodge window, but perfect dodges trigger a long slowdown pulse with bonus score.',
+    perfectDodgeBonus: 0.55,
+    baseSpeedOffset: 120,
+    flowMultiplierOffset: -0.02,
+    perfectDodgeWindowBonus: -12,
+    startingShieldBonus: 0,
+    tempoWindowDuration: 1.7,
+    tempoSpawnDelayMultiplier: 1.3,
+    tempoSpeedOffset: -58
+  },
+  {
+    id: 'safety_emergency_stasis',
+    family: 'Safety',
+    name: 'Emergency Stasis',
+    description: 'Start with +2 shields and faster baseline pressure, but perfect dodges trigger a long emergency slowdown pulse.',
+    perfectDodgeBonus: -0.1,
+    baseSpeedOffset: 18,
+    flowMultiplierOffset: -0.1,
+    perfectDodgeWindowBonus: 6,
+    startingShieldBonus: 2,
+    tempoWindowDuration: 2.1,
+    tempoSpawnDelayMultiplier: 1.4,
+    tempoSpeedOffset: -92
   }
 ];
 const HEAVY_OBSTACLE_DIFFICULTY_THRESHOLD = 25;
@@ -223,7 +301,7 @@ function loadLatestScore() {
       return null;
     }
     return {
-      name: String(parsed.name || 'Player'),
+      name: String(parsed.name || 'Drifter'),
       score
     };
   } catch (error) {
@@ -240,7 +318,7 @@ function persistLatestScore(scoreEntry) {
 }
 
 function loadUpgrades() {
-  const fallback = { points: 0, flow: 0, shield: 0 };
+  const fallback = { points: 0, flow: 0, shield: 0, scanner: 0 };
   try {
     const raw = localStorage.getItem(UPGRADE_KEY);
     if (!raw) {
@@ -254,15 +332,24 @@ function loadUpgrades() {
 }
 
 function sanitizeUpgrades(raw) {
+  const source =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? raw
+      : {};
   return {
-    points: Math.max(0, Math.floor(Number(raw.points) || 0)),
-    flow: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.flow) || 0))),
-    shield: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(raw.shield) || 0)))
+    points: Math.max(0, Math.floor(Number(source.points) || 0)),
+    flow: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(source.flow) || 0))),
+    shield: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(source.shield) || 0))),
+    scanner: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(source.scanner) || 0)))
   };
 }
 
 function persistUpgrades() {
-  localStorage.setItem(UPGRADE_KEY, JSON.stringify(state.upgrades));
+  try {
+    localStorage.setItem(UPGRADE_KEY, JSON.stringify(state.upgrades));
+  } catch (error) {
+    // Ignore storage errors so gameplay can continue in restricted environments.
+  }
 }
 
 const initialProgress = loadProgress();
@@ -296,8 +383,19 @@ const state = {
   activePerkId: null,
   runPerkState: {
     perfectDodgeBonus: 0,
-    baseSpeedOffset: 0
+    baseSpeedOffset: 0,
+    flowMultiplierOffset: 0,
+    perfectDodgeWindowBonus: 0,
+    startingShieldBonus: 0,
+    tempoWindowDuration: 0,
+    tempoSpawnDelayMultiplier: 1,
+    tempoSpeedOffset: 0,
+    paradoxWindowDuration: 0,
+    paradoxRewindDistance: 0,
+    paradoxBonusScore: 0
   },
+  perkTempoTimer: 0,
+  precisionParadoxTimer: 0,
   recentSpawnTypes: [],
   eventLabel: 'Warmup',
   eventPhase: 'Warmup',
@@ -307,9 +405,16 @@ const state = {
   surgeTimer: 0,
   surgeBurstSpawns: 0,
   surgeSpawnTimerBoosted: false,
+  scannerCueCooldown: 0,
+  paradoxChargeVisualActive: false,
+  lastPerkOfferKey: null,
   nextEvadeGroupId: 1,
   evadeGroupRemaining: {}
 };
+
+if (hudPerkEl) {
+  hudPerkEl.tabIndex = 0;
+}
 
 bestEl.textContent = state.best.toFixed(1);
 resetProgressionUi();
@@ -317,8 +422,6 @@ renderLeaderboard();
 positionPlayer();
 renderUpgrades();
 syncMobilePanels(true);
-rollPerkChoices();
-renderPerkChoices();
 
 function createSupabaseClient() {
   if (
@@ -345,6 +448,7 @@ function setMode(mode) {
   state.mode = mode;
   overlayStart.classList.toggle('is-visible', mode === 'start' || mode === 'countdown');
   overlayOver.classList.toggle('is-visible', mode === 'gameover');
+  syncParadoxChargeState();
   renderUpgrades();
 }
 
@@ -386,22 +490,91 @@ function selectedPerk() {
   return RUN_PERKS.find((perk) => perk.id === state.selectedPerkId) ?? null;
 }
 
+function activePerkTooltipText() {
+  const perk = currentPerk();
+  if (!perk) {
+    return 'No active perk selected for this run.';
+  }
+  return `${perk.family} - ${perk.name}: ${perk.description}`;
+}
+
+function isParadoxChargeActive() {
+  return state.mode === 'playing' && state.runPerkState.paradoxWindowDuration > 0 && state.precisionParadoxTimer > 0;
+}
+
+function syncParadoxChargeState() {
+  const paradoxChargeActive = isParadoxChargeActive();
+  playerEl.classList.toggle('is-paradox-charged', paradoxChargeActive);
+  if (state.paradoxChargeVisualActive !== paradoxChargeActive) {
+    state.paradoxChargeVisualActive = paradoxChargeActive;
+    syncActivePerkHud();
+  }
+}
+
+function syncActivePerkHud() {
+  if (!hudPerkEl) {
+    return;
+  }
+  const perk = currentPerk();
+  const chargedSuffix = perk && state.paradoxChargeVisualActive ? ' (Charged)' : '';
+  hudPerkEl.textContent = perk ? `${perk.name}${chargedSuffix}` : 'None';
+  hudPerkEl.title = activePerkTooltipText();
+}
+
 function applySelectedPerk() {
   const perk = selectedPerk();
   state.activePerkId = perk ? perk.id : null;
   state.runPerkState = {
     perfectDodgeBonus: perk ? perk.perfectDodgeBonus : 0,
-    baseSpeedOffset: perk ? perk.baseSpeedOffset : 0
+    baseSpeedOffset: perk ? perk.baseSpeedOffset : 0,
+    flowMultiplierOffset: perk ? perk.flowMultiplierOffset : 0,
+    perfectDodgeWindowBonus: perk ? perk.perfectDodgeWindowBonus : 0,
+    startingShieldBonus: perk ? perk.startingShieldBonus : 0,
+    tempoWindowDuration: perk ? perk.tempoWindowDuration : 0,
+    tempoSpawnDelayMultiplier: perk ? perk.tempoSpawnDelayMultiplier : 1,
+    tempoSpeedOffset: perk ? perk.tempoSpeedOffset : 0,
+    paradoxWindowDuration: perk ? perk.paradoxWindowDuration || 0 : 0,
+    paradoxRewindDistance: perk ? perk.paradoxRewindDistance || 0 : 0,
+    paradoxBonusScore: perk ? perk.paradoxBonusScore || 0 : 0
   };
+  state.perkTempoTimer = 0;
+  state.precisionParadoxTimer = 0;
+  state.paradoxChargeVisualActive = false;
+  syncParadoxChargeState();
+  syncActivePerkHud();
+}
+
+function perkOfferKey(perks) {
+  return perks
+    .map((perk) => perk.id)
+    .sort()
+    .join('|');
 }
 
 function rollPerkChoices() {
-  const pool = [...RUN_PERKS];
-  for (let i = pool.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+  if (RUN_PERKS.length <= 2) {
+    state.perkChoices = [...RUN_PERKS];
+    state.lastPerkOfferKey = perkOfferKey(state.perkChoices);
+  } else {
+    const pairs = [];
+    for (let i = 0; i < RUN_PERKS.length; i += 1) {
+      for (let j = i + 1; j < RUN_PERKS.length; j += 1) {
+        pairs.push([RUN_PERKS[i], RUN_PERKS[j]]);
+      }
+    }
+
+    let candidatePairs = pairs;
+    if (state.lastPerkOfferKey) {
+      const nonRepeatingPairs = pairs.filter((pair) => perkOfferKey(pair) !== state.lastPerkOfferKey);
+      if (nonRepeatingPairs.length > 0) {
+        candidatePairs = nonRepeatingPairs;
+      }
+    }
+
+    const pickedPair = candidatePairs[Math.floor(Math.random() * candidatePairs.length)] ?? pairs[0];
+    state.perkChoices = [...pickedPair];
+    state.lastPerkOfferKey = perkOfferKey(state.perkChoices);
   }
-  state.perkChoices = pool.slice(0, 2);
 
   if (!state.perkChoices.some((perk) => perk.id === state.selectedPerkId)) {
     state.selectedPerkId = state.perkChoices[0]?.id ?? null;
@@ -419,7 +592,7 @@ function renderPerkChoices() {
     button.type = 'button';
     button.className = 'button button-secondary perk-choice';
     button.setAttribute('aria-pressed', String(perk.id === state.selectedPerkId));
-    button.innerHTML = `<strong>${perk.name}${perk.id === state.selectedPerkId ? ' (Selected)' : ''}</strong><span>${perk.description}</span>`;
+    button.innerHTML = `<strong>${perk.family}: ${perk.name}${perk.id === state.selectedPerkId ? ' (Selected)' : ''}</strong><span>${perk.description}</span>`;
     button.addEventListener('click', () => {
       state.selectedPerkId = perk.id;
       renderPerkChoices();
@@ -441,10 +614,7 @@ function resetProgressionUi() {
   if (hudShieldsEl) {
     hudShieldsEl.textContent = '0';
   }
-  if (hudPerkEl) {
-    const perk = currentPerk();
-    hudPerkEl.textContent = perk ? perk.name : 'None';
-  }
+  syncActivePerkHud();
   if (runScrapEarnedEl) {
     runScrapEarnedEl.textContent = '0';
   }
@@ -452,6 +622,11 @@ function resetProgressionUi() {
     const perk = currentPerk();
     perkInfoCopyEl.textContent = perk ? `${perk.name} active this run.` : 'No active perk this run.';
   }
+}
+
+function scrapEarnedFromScore(score) {
+  const steps = Math.max(0, Math.floor(score / UPGRADE_POINT_STEP));
+  return steps * UPGRADE_SCRAP_PER_STEP;
 }
 
 function upgradeCost(type) {
@@ -468,21 +643,26 @@ function canPurchase(type) {
 }
 
 function renderUpgrades() {
-  if (!upgradePointsEl || !flowLevelEl || !shieldLevelEl) {
+  if (!upgradePointsEl) {
     return;
   }
-  upgradePointsEl.textContent = String(state.upgrades.points);
-  flowLevelEl.textContent = `Lv ${state.upgrades.flow}`;
-  shieldLevelEl.textContent = `Lv ${state.upgrades.shield}`;
-  buyFlowButton.disabled = !canPurchase('flow');
-  buyShieldButton.disabled = !canPurchase('shield');
-  buyFlowButton.textContent = state.upgrades.flow >= MAX_UPGRADE_LEVEL ? 'Flow Maxed' : `Buy Flow (${upgradeCost('flow')})`;
-  buyShieldButton.textContent = state.upgrades.shield >= MAX_UPGRADE_LEVEL ? 'Shield Maxed' : `Buy Shield (${upgradeCost('shield')})`;
-  if (upgradeStatusEl) {
-    upgradeStatusEl.textContent = state.mode === 'playing' || state.mode === 'countdown'
-      ? ''
-      : `Earn 1 scrap every ${UPGRADE_POINT_STEP} score`;
+  if (upgradesSubcopyEl) {
+    upgradesSubcopyEl.textContent = 'Permanent';
   }
+  if (upgradeStatusEl) {
+    upgradeStatusEl.textContent = `Earn ${UPGRADE_SCRAP_PER_STEP} scrap every ${UPGRADE_POINT_STEP} score`;
+  }
+  upgradePointsEl.textContent = String(state.upgrades.points);
+  UPGRADE_DEFS.forEach((upgrade) => {
+    if (!upgrade.levelEl || !upgrade.buttonEl) {
+      return;
+    }
+    upgrade.levelEl.textContent = `Lv ${state.upgrades[upgrade.id]}`;
+    upgrade.buttonEl.disabled = !canPurchase(upgrade.id);
+    upgrade.buttonEl.textContent = state.upgrades[upgrade.id] >= MAX_UPGRADE_LEVEL
+      ? upgrade.maxLabel
+      : `${upgrade.buyLabel} (${upgradeCost(upgrade.id)} Scrp)`;
+  });
 }
 
 function purchaseUpgrade(type) {
@@ -517,19 +697,23 @@ function resetGame() {
   state.surgeTimer = 0;
   state.surgeBurstSpawns = 0;
   state.surgeSpawnTimerBoosted = false;
+  state.precisionParadoxTimer = 0;
+  state.scannerCueCooldown = 0;
   state.nextEvadeGroupId = 1;
   state.evadeGroupRemaining = {};
   state.latestSubmittedScore = loadLatestScore();
   applySelectedPerk();
-  state.runShieldCharges = state.upgrades.shield;
+  state.runShieldCharges = state.upgrades.shield + state.runPerkState.startingShieldBonus;
   clearTimeout(state.switchPulseTimeout);
   clearTimeout(state.feedbackTimeout);
   clearTimeout(state.scoreFlashTimeout);
   clearTimeout(state.goTimeout);
   playerEl.classList.remove('is-switching');
   playerEl.classList.remove('is-near-miss');
+  playerEl.classList.remove('is-paradox-charged');
   countdownEl.textContent = '';
   countdownEl.classList.remove('is-go');
+  countdownEl.classList.remove('is-pop');
   feedbackEl.textContent = '';
   feedbackEl.classList.remove('is-visible');
   scoreEl.classList.remove('is-flashing');
@@ -566,7 +750,7 @@ function gameOver() {
   }
   finalScoreEl.textContent = state.score.toFixed(1);
   if (runScrapEarnedEl) {
-    runScrapEarnedEl.textContent = String(Math.max(0, Math.floor(state.score / UPGRADE_POINT_STEP)));
+    runScrapEarnedEl.textContent = String(scrapEarnedFromScore(state.score));
   }
   if (state.score > state.best) {
     state.best = state.score;
@@ -582,7 +766,7 @@ function gameOver() {
     playerNameEl.focus({ preventScroll: true });
   }, 80);
   window.setTimeout(() => playerNameEl.focus(), 80);
-  const earnedPoints = Math.max(0, Math.floor(state.score / UPGRADE_POINT_STEP));
+  const earnedPoints = scrapEarnedFromScore(state.score);
   if (earnedPoints > 0) {
     state.upgrades.points += earnedPoints;
     persistUpgrades();
@@ -665,7 +849,7 @@ async function submitScore() {
     return true;
   }
 
-  const name = playerNameEl.value.trim() || 'Player';
+  const name = playerNameEl.value.trim() || 'Drifter';
   if (!supabaseClient) {
     scoreboardStatusEl.textContent = 'Add Supabase credentials in script.js to save scores online.';
     return false;
@@ -726,6 +910,20 @@ function showFeedback(message, duration = 560) {
   }, duration);
 }
 
+function triggerCountdownPop() {
+  countdownEl.classList.remove('is-pop');
+  void countdownEl.offsetWidth;
+  countdownEl.classList.add('is-pop');
+}
+
+function triggerScannerCue(message) {
+  if (state.upgrades.scanner <= 0 || state.scannerCueCooldown > 0) {
+    return;
+  }
+  state.scannerCueCooldown = 0.75;
+  showFeedback(message, 680);
+}
+
 function triggerNearMissFeedback() {
   playerEl.classList.remove('is-near-miss');
   playerEl.classList.add('is-near-miss');
@@ -743,13 +941,62 @@ function awardPerfectDodge() {
   flashScoreLabel();
   triggerNearMissFeedback();
   showFeedback(`Perfect Dodge +${perfectDodgeBonus.toFixed(1)}`);
+  if (state.runPerkState.tempoWindowDuration > 0) {
+    state.perkTempoTimer = state.runPerkState.tempoWindowDuration;
+  }
+  if (state.runPerkState.paradoxWindowDuration > 0) {
+    state.precisionParadoxTimer = state.runPerkState.paradoxWindowDuration;
+    showFeedback('Paradox Charged!', 760);
+  }
+  syncParadoxChargeState();
+}
+
+function triggerPrecisionParadox() {
+  if (state.precisionParadoxTimer <= 0 || state.runPerkState.paradoxRewindDistance <= 0) {
+    return;
+  }
+
+  const playerRect = playerEl.getBoundingClientRect();
+  const frameRect = frame.getBoundingClientRect();
+  const playerX = playerRect.left - frameRect.left + playerRect.width / 2;
+
+  const targets = state.obstacles.filter((obstacle) => {
+    if (obstacle.lane !== state.lane) {
+      return false;
+    }
+    const laneDistance = obstacle.x - playerX;
+    return laneDistance >= -24;
+  });
+
+  if (targets.length === 0) {
+    return;
+  }
+
+  const rewindDistance = state.runPerkState.paradoxRewindDistance;
+  targets.forEach((targetObstacle) => {
+    targetObstacle.x += rewindDistance;
+    targetObstacle.spawnX = Math.max(targetObstacle.spawnX, targetObstacle.x);
+    targetObstacle.el.style.left = `${targetObstacle.x}px`;
+    targetObstacle.swapTelegraphed = false;
+    targetObstacle.splitTelegraphed = false;
+    targetObstacle.el.classList.remove('is-telegraph');
+  });
+
+  state.precisionParadoxTimer = 0;
+  syncParadoxChargeState();
+
+  const paradoxBonus = state.runPerkState.paradoxBonusScore;
+  state.score += paradoxBonus;
+  scoreEl.textContent = state.score.toFixed(1);
+  flashScoreLabel();
+  showFeedback(`Paradox Wave! +${paradoxBonus.toFixed(1)}`, 800);
 }
 
 function checkPerfectDodge(previousLane) {
   const playerRect = playerEl.getBoundingClientRect();
   const frameRect = frame.getBoundingClientRect();
   const playerX = playerRect.left - frameRect.left + playerRect.width / 2;
-  const dodgeWindow = 48;
+  const dodgeWindow = 48 + state.runPerkState.perfectDodgeWindowBonus;
 
   const closeThreat = state.obstacles.find((obstacle) => {
     if (obstacle.lane !== previousLane || obstacle.perfectDodged) {
@@ -777,6 +1024,7 @@ function toggleLane() {
   }, 110);
   if (previousLane !== state.lane) {
     checkPerfectDodge(previousLane);
+    triggerPrecisionParadox();
   }
 }
 
@@ -981,12 +1229,25 @@ function updatePhantomObstacle(obstacle, playerX) {
   }
 
   const travelProgress = obstacleTravelProgress(obstacle, playerX);
-  if (!obstacle.swapTelegraphed && travelProgress >= ENEMY_VARIETY_TUNING.phantomSwapTelegraphProgress) {
+  const scannerAssist = state.upgrades.scanner * 0.03;
+  const telegraphProgress = clamp(
+    ENEMY_VARIETY_TUNING.phantomSwapTelegraphProgress - scannerAssist,
+    0.12,
+    0.5
+  );
+  const swapProgress = clamp(
+    ENEMY_VARIETY_TUNING.phantomSwapProgress + scannerAssist * 0.85,
+    telegraphProgress + 0.12,
+    0.88
+  );
+
+  if (!obstacle.swapTelegraphed && travelProgress >= telegraphProgress) {
     obstacle.swapTelegraphed = true;
     obstacle.el.classList.add('is-telegraph');
+    triggerScannerCue('Scanner: Phantom incoming!');
   }
 
-  if (travelProgress >= ENEMY_VARIETY_TUNING.phantomSwapProgress) {
+  if (travelProgress >= swapProgress) {
     obstacle.hasSwapped = true;
     obstacle.swapTelegraphed = false;
     obstacle.lane = obstacle.lane === 0 ? 1 : 0;
@@ -1029,12 +1290,25 @@ function updateSplitterObstacle(obstacle, playerX) {
   }
 
   const travelProgress = obstacleTravelProgress(obstacle, playerX);
-  if (!obstacle.splitTelegraphed && travelProgress >= ENEMY_VARIETY_TUNING.splitterTelegraphProgress) {
+  const scannerAssist = state.upgrades.scanner * 0.03;
+  const telegraphProgress = clamp(
+    ENEMY_VARIETY_TUNING.splitterTelegraphProgress - scannerAssist,
+    0.1,
+    0.45
+  );
+  const splitProgress = clamp(
+    ENEMY_VARIETY_TUNING.splitterSplitProgress + scannerAssist * 0.8,
+    telegraphProgress + 0.1,
+    0.86
+  );
+
+  if (!obstacle.splitTelegraphed && travelProgress >= telegraphProgress) {
     obstacle.splitTelegraphed = true;
     obstacle.el.classList.add('is-telegraph');
+    triggerScannerCue('Scanner: Splitter incoming!');
   }
 
-  if (travelProgress >= ENEMY_VARIETY_TUNING.splitterSplitProgress) {
+  if (travelProgress >= splitProgress) {
     splitObstacleIntoFragments(obstacle);
   }
 }
@@ -1321,18 +1595,24 @@ function loop(timestamp) {
     state.countdown -= dt;
 
     if (state.countdown > 0) {
+      const nextCountdown = String(Math.ceil(state.countdown));
       countdownEl.classList.remove('is-go');
-      countdownEl.textContent = String(Math.ceil(state.countdown));
+      if (countdownEl.textContent !== nextCountdown) {
+        countdownEl.textContent = nextCountdown;
+        triggerCountdownPop();
+      }
       requestAnimationFrame(loop);
       return;
     }
 
     countdownEl.textContent = 'Go';
     countdownEl.classList.add('is-go');
+    triggerCountdownPop();
     setMode('playing');
     clearTimeout(state.goTimeout);
     state.goTimeout = setTimeout(() => {
       countdownEl.classList.remove('is-go');
+      countdownEl.classList.remove('is-pop');
       countdownEl.textContent = '';
     }, 260);
     state.lastTime = timestamp;
@@ -1351,19 +1631,34 @@ function loop(timestamp) {
   const dt = Math.min((timestamp - state.lastTime) / 1000, 0.033);
   state.lastTime = timestamp;
 
-  const flowMultiplier = 1 + (state.upgrades.flow * 0.12);
+  const flowMultiplier = Math.max(0.5, 1 + (state.upgrades.flow * 0.11) + state.runPerkState.flowMultiplierOffset);
   state.score += dt * flowMultiplier;
   state.graceTime = Math.max(0, state.graceTime - dt);
   state.difficultyScore += dt;
   const perkSpeedOffset = state.runPerkState.baseSpeedOffset;
+  state.perkTempoTimer = Math.max(0, state.perkTempoTimer - dt);
+  const tempoActive = state.perkTempoTimer > 0;
+  const tempoSpawnMultiplier = tempoActive ? state.runPerkState.tempoSpawnDelayMultiplier : 1;
+  const tempoSpeedOffset = tempoActive ? state.runPerkState.tempoSpeedOffset : 0;
   updateEventPhase(dt);
   const intensity = currentIntensityState();
   state.eventLabel = intensity.label;
-  state.speed = clamp(intensity.speed + perkSpeedOffset, MIN_SPEED, MAX_SPEED);
-  state.spawnDelay = clamp(intensity.spawnDelay, MIN_SPAWN_DELAY, BASE_SPAWN_DELAY);
+  state.speed = clamp(intensity.speed + perkSpeedOffset + tempoSpeedOffset, MIN_SPEED, MAX_SPEED);
+  state.spawnDelay = clamp(intensity.spawnDelay * tempoSpawnMultiplier, MIN_SPAWN_DELAY, BASE_SPAWN_DELAY * 1.24);
   state.spawnTimer += dt;
   state.surgeCooldown = Math.max(0, state.surgeCooldown - dt);
   state.surgeTimer = Math.max(0, state.surgeTimer - dt);
+  const previousParadoxTimer = state.precisionParadoxTimer;
+  state.precisionParadoxTimer = Math.max(0, state.precisionParadoxTimer - dt);
+  if (
+    previousParadoxTimer > 0 &&
+    state.precisionParadoxTimer <= 0 &&
+    state.runPerkState.paradoxWindowDuration > 0
+  ) {
+    showFeedback('Paradox Faded', 700);
+  }
+  syncParadoxChargeState();
+  state.scannerCueCooldown = Math.max(0, state.scannerCueCooldown - dt);
   if (state.eventPhase === 'Collapse') {
     resetSurgeBurstState();
   } else if (state.surgeTimer <= 0 || state.surgeBurstSpawns <= 0) {
@@ -1371,7 +1666,7 @@ function loop(timestamp) {
   }
   scoreEl.textContent = state.score.toFixed(1);
   if (hudScrapEl) {
-    hudScrapEl.textContent = String(Math.floor(state.score / UPGRADE_POINT_STEP));
+    hudScrapEl.textContent = String(scrapEarnedFromScore(state.score));
   }
   if (hudShieldsEl) {
     hudShieldsEl.textContent = String(state.runShieldCharges);
@@ -1483,6 +1778,18 @@ frame.addEventListener('pointerdown', (event) => {
   }
   toggleLane();
 });
+hudPerkItemEl?.addEventListener('pointerdown', (event) => {
+  const hasHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (hasHover && event.pointerType === 'mouse') {
+    return;
+  }
+  const now = performance.now();
+  if (now - lastPerkTooltipAt < 500) {
+    return;
+  }
+  lastPerkTooltipAt = now;
+  showFeedback(activePerkTooltipText(), 900);
+});
 playerNameEl.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
     event.preventDefault();
@@ -1492,6 +1799,7 @@ playerNameEl.addEventListener('keydown', (event) => {
 startButton.addEventListener('click', startGame);
 buyFlowButton.addEventListener('click', () => purchaseUpgrade('flow'));
 buyShieldButton.addEventListener('click', () => purchaseUpgrade('shield'));
+buyScannerButton?.addEventListener('click', () => purchaseUpgrade('scanner'));
 scoreboardToggleButton?.addEventListener('click', () => {
   if (!mobilePanelQuery.matches || !scoreboardPanelEl) {
     return;

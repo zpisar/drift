@@ -188,18 +188,21 @@ button {
 .hud {
   display: flex;
   justify-content: space-between;
-  align-items: end;
+  align-items: flex-end;
   gap: 12px;
   padding: 0 4px;
 }
 
 .hud-group {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
 }
 
 .hud-group-primary {
   min-width: 0;
+  display: grid;
+  align-items: end;
+  justify-items: start;
 }
 
 .hud-group-progression {
@@ -223,13 +226,15 @@ button {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   opacity: 0.6;
+  line-height: 1;
 }
 
 .value {
-  margin-top: 2px;
+  margin-top: 4px;
   font-size: clamp(1.3rem, 3vw, 1.9rem);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .value-compact {
@@ -305,12 +310,66 @@ button {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
+.player::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.86);
+  box-shadow:
+    0 0 0 1px rgba(124, 214, 255, 0),
+    0 0 14px rgba(124, 214, 255, 0),
+    0 0 30px rgba(66, 188, 255, 0);
+}
+
+.player.is-paradox-charged::after {
+  opacity: 0.98;
+  animation: paradox-corona 760ms ease-in-out infinite;
+}
+
 .player.is-switching {
   transform: translate(-50%, -50%) scale(0.92);
 }
 
 .player.is-near-miss {
   transform: translate(-50%, -50%) scale(1.14);
+}
+
+@keyframes paradox-corona {
+  0% {
+    transform: scale(0.82);
+    box-shadow:
+      0 0 0 1px rgba(124, 214, 255, 0.7),
+      0 0 10px rgba(124, 214, 255, 0.58),
+      0 0 18px rgba(66, 188, 255, 0.26);
+  }
+  60% {
+    transform: scale(1.22);
+    box-shadow:
+      0 0 0 1px rgba(124, 214, 255, 0.34),
+      0 0 22px rgba(124, 214, 255, 0.82),
+      0 0 42px rgba(66, 188, 255, 0.5);
+  }
+  100% {
+    transform: scale(1.06);
+    box-shadow:
+      0 0 0 1px rgba(124, 214, 255, 0.5),
+      0 0 16px rgba(124, 214, 255, 0.68),
+      0 0 28px rgba(66, 188, 255, 0.34);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player.is-paradox-charged::after {
+    animation: none;
+    transform: scale(1.08);
+    box-shadow:
+      0 0 0 1px rgba(124, 214, 255, 0.62),
+      0 0 16px rgba(124, 214, 255, 0.6),
+      0 0 30px rgba(66, 188, 255, 0.38);
+  }
 }
 
 .obstacles {
@@ -462,14 +521,18 @@ button {
   padding: 12px 14px;
 }
 
-.panel-card:nth-child(1),
-.panel-card:nth-child(3) {
+.panel-card.is-scrap {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
-.panel-card:nth-child(1) h3,
-.panel-card:nth-child(3) h3 {
+.panel-card.is-scrap h3 {
   text-align: center;
+  margin: 0;
 }
 
 .panel-card h3 {
@@ -486,6 +549,13 @@ button {
   font-weight: 600;
 }
 
+.panel-card.is-scrap .panel-value {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin: 0;
+}
+
 .panel-copy {
   margin: 8px 0 0;
   font-size: 0.96rem;
@@ -499,11 +569,11 @@ button {
   gap: 8px;
 }
 
-.panel-card:nth-child(2) {
+.panel-card.is-perks {
   min-height: 154px;
 }
 
-.panel-card:nth-child(2) .perk-choices {
+.panel-card.is-perks .perk-choices {
   max-width: 24rem;
 }
 
@@ -527,19 +597,44 @@ button {
   opacity: 0.74;
 }
 
+.hud-item-perk .value {
+  cursor: help;
+}
+
 .countdown {
   min-height: 1.4em;
   margin-top: 14px;
-  font-size: 1.05rem;
+  font-size: 1.25rem;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  opacity: 0.72;
+  opacity: 0.84;
   font-variant-numeric: tabular-nums;
+  transform: scale(0.9);
+}
+
+.countdown.is-pop {
+  animation: countdown-pop 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .countdown.is-go {
   opacity: 1;
-  transform: scale(1.04);
+  transform: scale(1.1);
+}
+
+@keyframes countdown-pop {
+  0% {
+    transform: scale(0.72);
+    opacity: 0.42;
+  }
+  65% {
+    transform: scale(1.14);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
 }
 
 .value.is-flashing {
@@ -640,10 +735,10 @@ button {
     width: 100%;
     margin-top: 4px;
     gap: 8px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "scrap perk"
-      "upgrades upgrades";
+      "scrap"
+      "perks";
   }
 
   .panel-card {
@@ -661,17 +756,13 @@ button {
     line-height: 1.35;
   }
 
-  .panel-card:nth-child(1) {
+  .panel-card.is-scrap {
     grid-area: scrap;
   }
 
-  .panel-card:nth-child(2) {
-    grid-area: upgrades;
+  .panel-card.is-perks {
+    grid-area: perks;
     min-height: 132px;
-  }
-
-  .panel-card:nth-child(3) {
-    grid-area: perk;
   }
 
   .perk-choices {
@@ -871,8 +962,7 @@ button {
     grid-template-areas:
       "title title"
       "summary summary"
-      "scrap perkinfo"
-      "upgrades upgrades"
+      "panels panels"
       "name name"
       "actions actions";
     align-content: start;
@@ -893,14 +983,15 @@ button {
   }
 
   .panel-stack {
+    grid-area: panels;
     width: 100%;
     margin-top: 0;
     gap: 8px;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "scrap perkinfo"
-      "upgrades upgrades";
+      "scrap"
+      "perks";
     overflow: hidden;
   }
 
@@ -922,16 +1013,12 @@ button {
     line-height: 1.25;
   }
 
-  .panel-card:nth-child(1) {
+  .panel-card.is-scrap {
     grid-area: scrap;
   }
 
-  .panel-card:nth-child(2) {
-    grid-area: upgrades;
-  }
-
-  .panel-card:nth-child(3) {
-    grid-area: perkinfo;
+  .panel-card.is-perks {
+    grid-area: perks;
   }
 
   .perk-list {
