@@ -119,13 +119,17 @@ button {
 
 .upgrade-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  max-height: min(56vh, 30rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding-right: 3px;
 }
 
 .upgrade-item {
   border: 1px solid rgba(21, 21, 21, 0.1);
   border-radius: 14px;
-  padding: 10px 10px 12px;
+  padding: 8px 9px 9px;
   background: rgba(255, 255, 255, 0.25);
 }
 
@@ -144,10 +148,10 @@ button {
 }
 
 .upgrade-item p {
-  margin: 8px 0 10px;
-  font-size: 0.84rem;
+  margin: 6px 0 8px;
+  font-size: 0.8rem;
   opacity: 0.7;
-  line-height: 1.45;
+  line-height: 1.35;
 }
 
 .upgrade-button {
@@ -155,7 +159,8 @@ button {
   min-width: 0;
   width: 100%;
   border-radius: 12px;
-  padding: 0.55rem 0.75rem;
+  padding: 0.48rem 0.68rem;
+  font-size: 0.9rem;
 }
 
 .upgrade-status {
@@ -254,6 +259,53 @@ button {
   box-shadow: 0 20px 60px rgba(21, 21, 21, 0.06);
 }
 
+.game-frame::before,
+.game-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.game-frame::before {
+  z-index: 1;
+  background:
+    radial-gradient(circle at 14% 50%, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 56%),
+    repeating-linear-gradient(104deg, rgba(255, 255, 255, 0) 0 11px, rgba(232, 247, 255, 0.9) 12px 13px, rgba(255, 255, 255, 0) 14px 28px);
+  background-size: 120% 100%, 260% 100%;
+  background-position: 0 0, 0 0;
+  mix-blend-mode: screen;
+}
+
+.game-frame::after {
+  z-index: 1;
+  background: linear-gradient(110deg, rgba(6, 10, 16, 0.06), rgba(2, 6, 12, 0.52) 58%, rgba(10, 18, 28, 0.18));
+}
+
+.game-frame.is-hyperdrive {
+  filter: contrast(1.34) saturate(0.8) brightness(0.84);
+}
+
+.game-frame.is-hyperdrive::before,
+.game-frame.is-hyperdrive::after {
+  opacity: 1;
+}
+
+.game-frame.is-hyperdrive::before {
+  animation: hyperdrive-streaks 150ms linear infinite;
+}
+
+@keyframes hyperdrive-streaks {
+  0% {
+    background-position: 0 0, 0 0;
+  }
+  100% {
+    background-position: 0 0, -220% 0;
+  }
+}
+
 .lane {
   position: absolute;
   left: 0;
@@ -308,6 +360,23 @@ button {
 .player {
   transition: top 120ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms ease;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  z-index: 3;
+}
+
+.player::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -2px;
+  width: clamp(28px, 3.8vw, 44px);
+  height: clamp(9px, 1.2vw, 14px);
+  border-radius: 999px;
+  opacity: 0;
+  transform: translate(-100%, -50%) scaleX(0.46);
+  transform-origin: right center;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(255, 247, 178, 0), rgba(143, 216, 255, 0.84) 44%, rgba(255, 255, 255, 0.94));
+  filter: blur(1px);
 }
 
 .player::after {
@@ -327,6 +396,21 @@ button {
 .player.is-paradox-charged::after {
   opacity: 0.98;
   animation: paradox-corona 760ms ease-in-out infinite;
+}
+
+.player.is-hyperdrive::before {
+  opacity: 1;
+  animation: hyperdrive-tail 120ms linear infinite;
+}
+
+.player.is-hyperdrive::after {
+  opacity: 1;
+  inset: -12px;
+  animation: hyperdrive-corona 160ms ease-out infinite;
+  box-shadow:
+    0 0 0 1px rgba(142, 224, 255, 0.8),
+    0 0 20px rgba(142, 224, 255, 0.78),
+    0 0 44px rgba(122, 186, 255, 0.62);
 }
 
 .player.is-switching {
@@ -361,7 +445,46 @@ button {
   }
 }
 
+@keyframes hyperdrive-tail {
+  0% {
+    transform: translate(-100%, -50%) scaleX(0.44);
+    opacity: 0.86;
+    filter: blur(1px);
+  }
+  60% {
+    transform: translate(-100%, -50%) scaleX(1.22);
+    opacity: 1;
+    filter: blur(1.8px);
+  }
+  100% {
+    transform: translate(-100%, -50%) scaleX(0.72);
+    opacity: 0.9;
+    filter: blur(1.2px);
+  }
+}
+
+@keyframes hyperdrive-corona {
+  0% {
+    transform: scale(0.84);
+  }
+  65% {
+    transform: scale(1.34);
+  }
+  100% {
+    transform: scale(1.02);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .game-frame.is-hyperdrive::before {
+    animation: none;
+  }
+
+  .player.is-hyperdrive::before,
+  .player.is-hyperdrive::after {
+    animation: none;
+  }
+
   .player.is-paradox-charged::after {
     animation: none;
     transform: scale(1.08);
@@ -384,6 +507,7 @@ button {
 .obstacles {
   position: absolute;
   inset: 0;
+  z-index: 2;
 }
 
 .obstacle {
@@ -462,6 +586,7 @@ button {
   pointer-events: none;
   transition: opacity 220ms ease, transform 220ms ease;
   transform: translateY(8px);
+  z-index: 5;
 }
 
 .overlay.is-visible {
@@ -922,6 +1047,12 @@ button {
   .scoreboard-list,
   .upgrade-list {
     gap: 8px;
+  }
+
+  .upgrade-list {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .scoreboard-head,
