@@ -71,19 +71,15 @@
 
           <div id="overlay-over" class="overlay">
             <h2>Game Over</h2>
-            <p>Your run ended at <span id="final-score">0.0</span>.</p>
+            <p>Your run ended at <span id="final-score">0.0</span></p>
             <section class="panel-stack" aria-label="Progression summary placeholders">
-              <article class="panel-card" aria-label="Scrap earned">
+              <article class="panel-card is-scrap" aria-label="Scrap earned">
                 <h3>Scrap Earned</h3>
                 <p id="run-scrap-earned" class="panel-value">0</p>
               </article>
-              <article class="panel-card" aria-label="Upgrade options">
-                <h3>Upgrades</h3>
+              <article class="panel-card is-perks" aria-label="Perk options">
+                <h3>Perks</h3>
                 <div id="perk-choices" class="perk-choices" role="group" aria-label="Choose one perk for next run"></div>
-              </article>
-              <article class="panel-card" aria-label="Perk details">
-                <h3>Perk Info</h3>
-                <p id="perk-info-copy" class="panel-copy">No active perk this run.</p>
               </article>
             </section>
             <label class="name-field" for="player-name">
@@ -103,7 +99,7 @@
         <div class="scoreboard-head upgrades-head">
           <div class="scoreboard-head-copy">
             <div class="label">Upgrades</div>
-            <div class="scoreboard-sub">Permanent progression</div>
+            <div id="upgrades-subcopy" class="scoreboard-sub">Permanent</div>
           </div>
           <button id="upgrades-toggle" class="mobile-panel-toggle" type="button" aria-expanded="false" aria-controls="upgrades-body" data-closed-label="Show Upgrades" data-open-label="Hide Upgrades">Show Upgrades</button>
         </div>
@@ -120,8 +116,13 @@
               <p>Adds one extra hit block per level at the start of each run.</p>
               <button id="buy-shield" class="button button-secondary upgrade-button" type="button">Buy Shield</button>
             </article>
+            <article class="upgrade-item">
+              <div class="upgrade-title">Scanner <span id="scanner-level" class="upgrade-level">Lv 0</span></div>
+              <p>Improves warning time before Phantom swaps and Splitter splits.</p>
+              <button id="buy-scanner" class="button button-secondary upgrade-button" type="button">Buy Scanner</button>
+            </article>
           </div>
-          <div id="upgrade-status" class="upgrade-status" aria-live="polite"></div>
+          <div id="upgrade-status" class="upgrade-status" aria-live="polite">Earn 1 scrap every 20 score</div>
         </div>
       </aside>
     </div>

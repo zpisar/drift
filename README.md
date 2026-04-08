@@ -1,8 +1,8 @@
 # Drift
 
-Drift is a minimalist post-apocalyptic survival game about timing, pressure, and staying alive for one more second.
+Drift is a minimalist post-apocalyptic lane survival game about timing, pressure, and staying alive for one more second.
 
-You pilot a survivor through two lanes while the world escalates from readable danger into full collapse. Runs are short, upgrades persist locally, and each retry gives you another chance to earn Scrap and push further.
+Runs are short, progression persists locally, and each retry feeds long-term upgrades while your run perk choices shape a distinct build every attempt.
 
 ## Play Online
 
@@ -13,63 +13,91 @@ Play in your browser through GitHub Pages:
 ## How to Play
 
 - Press `Space` on desktop, or tap the playfield on touch devices.
-- Your action switches between the two lanes.
-- Avoid incoming blocks by moving into the safe lane.
-- Survive longer to increase your score.
-- Enter your name after a run to save a top-10 score.
+- Each input switches between the two lanes.
+- Dodge incoming threats by moving into the safe lane.
+- Survive to raise score and difficulty.
+- After game over, save your run to the top-10 leaderboard (`Drifter` is used if name is empty).
 
 ## HUD Guide
 
-- `Score`: your current run score.
-- `Scrap`: temporary Scrap earned this run. You earn 1 Scrap every 8 score.
-- `Shields`: hit blocks available for the current run.
-- `Active Perk`: the perk selected for this run.
-- `Event`: the current world state: `Warmup`, `Cruise`, `Overdrive`, or `Collapse`.
-- `Best`: your best locally saved score.
+- `Score`: current run score.
+- `Scrap`: Scrap earned this run. You earn `1 Scrap every 20 score`.
+- `Shields`: current run shield charges.
+- `Active Perk`: currently active run perk (hover on desktop / tap on mobile for tooltip copy).
+- `Event`: current world state (`Warmup`, `Cruise`, `Overdrive`, `Collapse`).
+- `Best`: best locally saved score.
+
+## Enemies
+
+- `Normal`: baseline fast lane blocker.
+- `Heavy`: larger blocker with higher threat profile and telegraph styling.
+- `Phantom`: lane-swap enemy that telegraphs before crossing lanes.
+- `Splitter`: telegraphs then splits into two fragments across both lanes.
+- `Splitter Fragment`: faster follow-up shard created by a Splitter split.
+
+Scanner upgrades improve warning timing for Phantom swaps and Splitter splits.
 
 ## Scrap And Upgrades
 
-Scrap is the permanent upgrade currency. At game over, the Scrap earned during the run is added to your saved Scrap total.
+Scrap is the permanent currency. At game over, run Scrap is added to your saved total.
 
-Upgrades can be bought between runs, not during active play.
+Upgrades can be purchased only between runs.
 
-- `Flow`: increases score gain by 12% per level, which also helps earn Scrap faster.
-- `Shield`: adds one hit block per level at the start of each run.
+- `Flow`: boosts passive score gain.
+- `Shield`: adds starting shield charges per level.
+- `Scanner`: improves warning timing for advanced enemy behavior.
 
-Upgrade costs increase by level:
+Each upgrade branch has `Lv 0` to `Lv 6`.
 
-- `Flow`: 2, 3, 5, 7, 10, 14 Scrap
-- `Shield`: 2, 4, 6, 9, 12, 16 Scrap
+Upgrade costs by level:
+
+- `Flow`: 3, 5, 8, 11, 16, 22 Scrap
+- `Shield`: 2, 4, 7, 10, 14, 19 Scrap
+- `Scanner`: 3, 5, 8, 11, 15, 20 Scrap
 
 ## Run Perks
 
-Before a run, choose one temporary perk for that run:
+At game over you get a `2-choice` perk offer for the next run.
 
-- `Precision Drift`: perfect dodges grant +1.0 bonus score.
-- `Soft Launch`: starts the run with lower base speed for readability.
-- `Pulse Step`: perfect dodges grant +0.6 bonus score, but base speed is higher.
+Perk families:
+
+- `Tempo`
+- `Precision`
+- `Safety`
+
+Current perk pool:
+
+- `Tempo - Afterburn Rhythm`: perfect dodges trigger short rhythm windows with slower spawns.
+- `Tempo - Chaos Reactor`: extreme base speed pressure, tighter dodge timing, and powerful slowdown pulse on perfect dodges.
+- `Precision - Deadeye Line`: wider perfect-dodge window and extra dodge score with lower passive gain.
+- `Precision - Paradox Lens`: perfect dodges charge a short paradox window; your next switch rewinds the closest threat and grants bonus score.
+- `Safety - Guardrail Protocol`: +1 starting shield with calmer pace and lower perfect-dodge reward.
+- `Safety - Emergency Stasis`: +2 starting shields with stronger slowdown pulse behavior, balanced by weaker economy tempo.
 
 ## Events
 
-Events describe how hostile the world is right now.
+Events define macro pacing and enemy pressure:
 
-- `Warmup`: the opening phase. Blocks are slower and easier to read.
-- `Cruise`: the main survival phase. Heavy blocks start appearing and pressure builds steadily.
-- `Overdrive`: a dangerous high-speed phase. Blocks move faster and lane pressure increases.
-- `Collapse`: the catastrophic phase. Movement is fastest, spawn pressure is capped, heavy blocks are more common, and the game is at its harshest.
-- `Surge!`: a short popup-only spike that can happen during Cruise or Overdrive. Surge-spawned blocks arrive faster and move faster, but the Event HUD stays on the current phase.
+- `Warmup`: opening phase with lower speed and easier readability.
+- `Cruise`: main pressure phase; heavy threats become common.
+- `Overdrive`: faster movement and tighter spawn cadence.
+- `Collapse`: maximum pressure state with peak speed/spawn intensity.
+- `Surge!`: short burst event during Cruise/Overdrive that briefly spikes spawn tempo and movement speed.
 
-After the first Collapse, the world can shift back down into Overdrive or briefly into Cruise before ramping up again. Warmup only happens at the start of a run.
+After the first Collapse, phases can rotate between Cruise/Overdrive/Collapse instead of ending immediately.
+
+## Progression Depth
+
+- Permanent progression: `3` branches x `6` levels (`18` total levels).
+- Run perk pool: `6` perks across `3` families.
 
 ## Local Play
 
-Open `index.html` in a browser.
-
-No install step is required.
+Open `index.html` in a browser. No install step is required.
 
 ## Local Saves
 
-Best score, leaderboard entries, Scrap, and upgrades are stored in your browser with `localStorage`. They stay on your device and can be cleared by clearing site data for the page.
+Best score, latest submitted score, Scrap, and upgrade levels are stored in browser `localStorage`.
 
 ## License
 
