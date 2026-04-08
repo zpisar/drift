@@ -953,11 +953,18 @@ button {
 
   #overlay-over {
     height: 100%;
+    min-height: 0;
     gap: 8px;
     padding-top: 10px;
-    padding-bottom: 10px;
-    overflow: hidden;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(21, 21, 21, 0.34) rgba(255, 255, 255, 0.08);
     display: grid;
+    grid-auto-rows: min-content;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
       "title title"
@@ -966,6 +973,20 @@ button {
       "name name"
       "actions actions";
     align-content: start;
+  }
+
+  #overlay-over::-webkit-scrollbar {
+    width: 7px;
+  }
+
+  #overlay-over::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+  }
+
+  #overlay-over::-webkit-scrollbar-thumb {
+    background: rgba(21, 21, 21, 0.34);
+    border-radius: 999px;
   }
 
   #overlay-over > h2 {
@@ -985,6 +1006,7 @@ button {
   .panel-stack {
     grid-area: panels;
     width: 100%;
+    min-height: 0;
     margin-top: 0;
     gap: 8px;
     display: grid;
@@ -992,7 +1014,7 @@ button {
     grid-template-areas:
       "scrap"
       "perks";
-    overflow: hidden;
+    overflow: visible;
   }
 
   .panel-card {
@@ -1033,11 +1055,15 @@ button {
 
   .perk-choice strong {
     font-size: 0.78rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .perk-choice span {
     margin-top: 1px;
     font-size: 0.72rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .name-field {
