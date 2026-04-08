@@ -28,9 +28,11 @@ const upgradePointsEl = document.getElementById('upgrade-points');
 const flowLevelEl = document.getElementById('flow-level');
 const shieldLevelEl = document.getElementById('shield-level');
 const scannerLevelEl = document.getElementById('scanner-level');
+const hyperdriveLevelEl = document.getElementById('hyperdrive-level');
 const buyFlowButton = document.getElementById('buy-flow');
 const buyShieldButton = document.getElementById('buy-shield');
 const buyScannerButton = document.getElementById('buy-scanner');
+const buyHyperdriveButton = document.getElementById('buy-hyperdrive');
 const upgradesSubcopyEl = document.getElementById('upgrades-subcopy');
 const upgradeStatusEl = document.getElementById('upgrade-status');
 const upgradesToggleButton = document.getElementById('upgrades-toggle');
@@ -60,6 +62,12 @@ const SURGE_DURATION = 2;
 const SURGE_BURST_SPAWNS = 3;
 const SURGE_SPAWN_DELAY_MULTIPLIER = 0.45;
 const SURGE_OBSTACLE_SPEED_MULTIPLIER = 1.35;
+const HYPERDRIVE_DURATION = 3.0;
+const HYPERDRIVE_SCORE_MULTIPLIER = 1.22;
+const HYPERDRIVE_TIMELINE_SPEED_MULTIPLIER = 2.3;
+const HYPERDRIVE_TIMELINE_SPAWN_MULTIPLIER = 0.46;
+const HYPERDRIVE_COST = 100;
+const MAX_HYPERDRIVE_STOCK = 2;
 const PARADOX_BLAST_MAX_TARGETS = 2;
 const PARADOX_LANE_SLOW_DURATION = 1.0;
 const PARADOX_LANE_SLOW_MULTIPLIER = 0.85;
@@ -97,12 +105,14 @@ const FEEDBACK_DURATION_MULTIPLIER = 1.2;
 const UPGRADE_COSTS = Object.freeze({
   flow: [3, 5, 8, 11, 16, 22],
   shield: [2, 4, 7, 10, 14, 19],
-  scanner: [3, 5, 8, 11, 15, 20]
+  scanner: [3, 5, 8, 11, 15, 20],
+  hyperdrive: [HYPERDRIVE_COST]
 });
 const UPGRADE_DEFS = Object.freeze([
   { id: 'flow', levelEl: flowLevelEl, buttonEl: buyFlowButton, maxLabel: 'Flow Maxed', buyLabel: 'Buy Flow' },
   { id: 'shield', levelEl: shieldLevelEl, buttonEl: buyShieldButton, maxLabel: 'Shield Maxed', buyLabel: 'Buy Shield' },
-  { id: 'scanner', levelEl: scannerLevelEl, buttonEl: buyScannerButton, maxLabel: 'Scanner Maxed', buyLabel: 'Buy Scanner' }
+  { id: 'scanner', levelEl: scannerLevelEl, buttonEl: buyScannerButton, maxLabel: 'Scanner Maxed', buyLabel: 'Buy Scanner' },
+  { id: 'hyperdrive', levelEl: hyperdriveLevelEl, buttonEl: buyHyperdriveButton, maxLabel: 'Hyperdrive Stock Full', buyLabel: 'Buy Hyperdrive' }
 ]);
 const PHASE_DURATIONS = Object.freeze({
   Cruise: [8, 12],
@@ -322,8 +332,17 @@ function persistLatestScore(scoreEntry) {
   }
 }
 
+function upgradeMaxLevel(type) {
+  return type === 'hyperdrive' ? MAX_HYPERDRIVE_STOCK : MAX_UPGRADE_LEVEL;
+}
+
+function hyperdriveReadyCap() {
+  const hyperdriveBudget = state.upgrades.points + (state.upgrades.hyperdrive * HYPERDRIVE_COST);
+  return hyperdriveBudget > 200 ? 2 : 1;
+}
+
 function loadUpgrades() {
-  const fallback = { points: 0, flow: 0, shield: 0, scanner: 0 };
+  const fallback = { points: 0, flow: 0, shield: 0, scanner: 0, hyperdrive: 0 };
   try {
     const raw = localStorage.getItem(UPGRADE_KEY);
     if (!raw) {
@@ -343,9 +362,10 @@ function sanitizeUpgrades(raw) {
       : {};
   return {
     points: Math.max(0, Math.floor(Number(source.points) || 0)),
-    flow: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(source.flow) || 0))),
-    shield: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(source.shield) || 0))),
-    scanner: Math.min(MAX_UPGRADE_LEVEL, Math.max(0, Math.floor(Number(source.scanner) || 0)))
+    flow: Math.min(upgradeMaxLevel('flow'), Math.max(0, Math.floor(Number(source.flow) || 0))),
+    shield: Math.min(upgradeMaxLevel('shield'), Math.max(0, Math.floor(Number(source.shield) || 0))),
+    scanner: Math.min(upgradeMaxLevel('scanner'), Math.max(0, Math.floor(Number(source.scanner) || 0))),
+    hyperdrive: Math.min(upgradeMaxLevel('hyperdrive'), Math.max(0, Math.floor(Number(source.hyperdrive) || 0)))
   };
 }
 
@@ -382,6 +402,7 @@ const state = {
   scoreFlashTimeout: null,
   goTimeout: null,
   runShieldCharges: 0,
+  hyperdriveActiveTimer: 0,
   upgrades: loadUpgrades(),
   perkChoices: [],
   selectedPerkId: null,
@@ -458,6 +479,7 @@ function setMode(mode) {
   state.mode = mode;
   overlayStart.classList.toggle('is-visible', mode === 'start' || mode === 'countdown');
   overlayOver.classList.toggle('is-visible', mode === 'gameover');
+  syncHyperdriveVisualState();
   syncParadoxChargeState();
   renderUpgrades();
 }
@@ -519,6 +541,16 @@ function syncParadoxChargeState() {
     state.paradoxChargeVisualActive = paradoxChargeActive;
     syncActivePerkHud();
   }
+}
+
+function isHyperdriveActive() {
+  return state.mode === 'playing' && state.hyperdriveActiveTimer > 0;
+}
+
+function syncHyperdriveVisualState() {
+  const hyperdriveActive = isHyperdriveActive();
+  frame.classList.toggle('is-hyperdrive', hyperdriveActive);
+  playerEl.classList.toggle('is-hyperdrive', hyperdriveActive);
 }
 
 function syncActivePerkHud() {
@@ -640,6 +672,9 @@ function scrapEarnedFromScore(score) {
 }
 
 function upgradeCost(type) {
+  if (type === 'hyperdrive') {
+    return HYPERDRIVE_COST;
+  }
   const costTable = UPGRADE_COSTS[type];
   if (!costTable) {
     return Infinity;
@@ -649,7 +684,13 @@ function upgradeCost(type) {
 
 function canPurchase(type) {
   const canBuyBetweenRuns = state.mode === 'start' || state.mode === 'gameover';
-  return canBuyBetweenRuns && state.upgrades[type] < MAX_UPGRADE_LEVEL && state.upgrades.points >= upgradeCost(type);
+  if (!canBuyBetweenRuns) {
+    return false;
+  }
+  if (type === 'hyperdrive') {
+    return state.upgrades.hyperdrive < hyperdriveReadyCap() && state.upgrades.points >= HYPERDRIVE_COST;
+  }
+  return state.upgrades[type] < upgradeMaxLevel(type) && state.upgrades.points >= upgradeCost(type);
 }
 
 function renderUpgrades() {
@@ -667,9 +708,12 @@ function renderUpgrades() {
     if (!upgrade.levelEl || !upgrade.buttonEl) {
       return;
     }
-    upgrade.levelEl.textContent = `Lv ${state.upgrades[upgrade.id]}`;
+    const maxLevel = upgrade.id === 'hyperdrive' ? hyperdriveReadyCap() : upgradeMaxLevel(upgrade.id);
+    upgrade.levelEl.textContent = upgrade.id === 'hyperdrive'
+      ? `${state.upgrades[upgrade.id]} Ready`
+      : `Lv ${state.upgrades[upgrade.id]}`;
     upgrade.buttonEl.disabled = !canPurchase(upgrade.id);
-    upgrade.buttonEl.textContent = state.upgrades[upgrade.id] >= MAX_UPGRADE_LEVEL
+    upgrade.buttonEl.textContent = state.upgrades[upgrade.id] >= maxLevel
       ? upgrade.maxLabel
       : `${upgrade.buyLabel} (${upgradeCost(upgrade.id)} Scrp)`;
   });
@@ -707,6 +751,7 @@ function resetGame() {
   state.surgeTimer = 0;
   state.surgeBurstSpawns = 0;
   state.surgeSpawnTimerBoosted = false;
+  state.hyperdriveActiveTimer = 0;
   state.precisionParadoxTimer = 0;
   state.scannerCueCooldown = 0;
   state.paradoxLaneSlow = { lane: null, timer: 0, multiplier: 1 };
@@ -722,6 +767,8 @@ function resetGame() {
   playerEl.classList.remove('is-switching');
   playerEl.classList.remove('is-near-miss');
   playerEl.classList.remove('is-paradox-charged');
+  playerEl.classList.remove('is-hyperdrive');
+  frame.classList.remove('is-hyperdrive');
   countdownEl.textContent = '';
   countdownEl.classList.remove('is-go');
   countdownEl.classList.remove('is-pop');
@@ -860,7 +907,25 @@ async function submitScore() {
     return true;
   }
 
-  const name = playerNameEl.value.trim() || 'Drifter';
+  const rawName = playerNameEl.value.trim();
+  const cheatToken = rawName.toLowerCase();
+  if (cheatToken === '100scraps') {
+    state.upgrades.points += 100;
+    persistUpgrades();
+    renderUpgrades();
+    state.savedScore = true;
+    overlayOver.classList.add('is-saved');
+    showFeedback('Cheat: +100 Scrap', 860);
+    if (saveStatusEl) {
+      saveStatusEl.textContent = 'Cheat activated: +100 Scrap added locally.';
+      saveStatusEl.hidden = false;
+    }
+    playerNameEl.blur();
+    scoreboardStatusEl.textContent = '';
+    return true;
+  }
+
+  const name = rawName || 'Drifter';
   if (!supabaseClient) {
     scoreboardStatusEl.textContent = 'Add Supabase credentials in script.js to save scores online.';
     return false;
@@ -934,6 +999,13 @@ function triggerScannerCue(message) {
   }
   state.scannerCueCooldown = 0.75;
   showFeedback(message, 680);
+}
+
+function startHyperdrive() {
+  state.hyperdriveActiveTimer = HYPERDRIVE_DURATION;
+  state.graceTime = Math.max(state.graceTime, 0.16);
+  showFeedback('Hyperdrive Engaged!', 920);
+  syncHyperdriveVisualState();
 }
 
 function triggerNearMissFeedback() {
@@ -1652,10 +1724,11 @@ function loop(timestamp) {
   const dt = Math.min((timestamp - state.lastTime) / 1000, 0.033);
   state.lastTime = timestamp;
 
-  const flowMultiplier = Math.max(0.5, 1 + (state.upgrades.flow * 0.11) + state.runPerkState.flowMultiplierOffset);
+  const hyperdriveScoreMultiplier = state.hyperdriveActiveTimer > 0 ? HYPERDRIVE_SCORE_MULTIPLIER : 1;
+  const flowMultiplier = Math.max(0.5, 1 + (state.upgrades.flow * 0.11) + state.runPerkState.flowMultiplierOffset) * hyperdriveScoreMultiplier;
   state.score += dt * flowMultiplier;
   state.graceTime = Math.max(0, state.graceTime - dt);
-  state.difficultyScore += dt;
+  state.difficultyScore += dt * (state.hyperdriveActiveTimer > 0 ? 1.85 : 1);
   const perkSpeedOffset = state.runPerkState.baseSpeedOffset;
   state.perkTempoTimer = Math.max(0, state.perkTempoTimer - dt);
   const tempoActive = state.perkTempoTimer > 0;
@@ -1664,11 +1737,19 @@ function loop(timestamp) {
   updateEventPhase(dt);
   const intensity = currentIntensityState();
   state.eventLabel = intensity.label;
-  state.speed = clamp(intensity.speed + perkSpeedOffset + tempoSpeedOffset, MIN_SPEED, MAX_SPEED);
-  state.spawnDelay = clamp(intensity.spawnDelay * tempoSpawnMultiplier, MIN_SPAWN_DELAY, BASE_SPAWN_DELAY * 1.24);
+  const hyperdriveTimelineMultiplier = state.hyperdriveActiveTimer > 0 ? HYPERDRIVE_TIMELINE_SPEED_MULTIPLIER : 1;
+  const hyperdriveSpawnMultiplier = state.hyperdriveActiveTimer > 0 ? HYPERDRIVE_TIMELINE_SPAWN_MULTIPLIER : 1;
+  state.speed = clamp((intensity.speed + perkSpeedOffset + tempoSpeedOffset) * hyperdriveTimelineMultiplier, MIN_SPEED, MAX_SPEED);
+  state.spawnDelay = clamp(intensity.spawnDelay * tempoSpawnMultiplier * hyperdriveSpawnMultiplier, MIN_SPAWN_DELAY, BASE_SPAWN_DELAY * 1.24);
   state.spawnTimer += dt;
   state.surgeCooldown = Math.max(0, state.surgeCooldown - dt);
   state.surgeTimer = Math.max(0, state.surgeTimer - dt);
+  const wasHyperdriveActive = state.hyperdriveActiveTimer > 0;
+  state.hyperdriveActiveTimer = Math.max(0, state.hyperdriveActiveTimer - dt);
+  if (wasHyperdriveActive && state.hyperdriveActiveTimer <= 0) {
+    showFeedback('Hyperdrive Offline', 720);
+  }
+  syncHyperdriveVisualState();
   const previousParadoxTimer = state.precisionParadoxTimer;
   state.precisionParadoxTimer = Math.max(0, state.precisionParadoxTimer - dt);
   if (
@@ -1752,11 +1833,23 @@ function loop(timestamp) {
     const obstacleX = obstacle.x;
     const collisionDistance = 10 + obstacle.hitHalfWidth;
     if (state.graceTime <= 0 && obstacle.lane === state.lane && Math.abs(obstacleX - playerX) <= collisionDistance) {
+      if (state.hyperdriveActiveTimer > 0) {
+        removeObstacleAt(i, false);
+        continue;
+      }
       if (state.runShieldCharges > 0) {
         state.runShieldCharges -= 1;
         removeObstacleAt(i, false);
         showFeedback(`Shield Block (${state.runShieldCharges} left)`);
         renderUpgrades();
+        continue;
+      }
+      if (state.upgrades.hyperdrive > 0) {
+        state.upgrades.hyperdrive = Math.max(0, state.upgrades.hyperdrive - 1);
+        persistUpgrades();
+        renderUpgrades();
+        removeObstacleAt(i, false);
+        startHyperdrive();
         continue;
       }
       gameOver();
@@ -1839,6 +1932,7 @@ startButton.addEventListener('click', startGame);
 buyFlowButton.addEventListener('click', () => purchaseUpgrade('flow'));
 buyShieldButton.addEventListener('click', () => purchaseUpgrade('shield'));
 buyScannerButton?.addEventListener('click', () => purchaseUpgrade('scanner'));
+buyHyperdriveButton?.addEventListener('click', () => purchaseUpgrade('hyperdrive'));
 scoreboardToggleButton?.addEventListener('click', () => {
   if (!mobilePanelQuery.matches || !scoreboardPanelEl) {
     return;
