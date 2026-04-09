@@ -1,8 +1,15 @@
 # Drift
 
-Drift is a minimalist post-apocalyptic lane survival game about timing, pressure, and staying alive for one more second.
+Drift is a minimalist deep-space lane survival game about timing, pressure, and staying alive for one more second.
 
 Runs are short, progression persists locally, and each retry feeds long-term upgrades while your run perk choices shape a distinct build every attempt.
+
+## World Backstory
+
+Earth’s high-tech civilization collapsed in a sudden apocalyptic chain event.  
+You are one of the last drifters who escaped into deep space, flying blind through unstable lanes, chasing scraps of signal and survival.
+
+The tone is isolation, speed, and cosmic dread: surviving one more run while the void gets louder.
 
 ## Play Online
 
@@ -46,14 +53,17 @@ Upgrades can be purchased only between runs.
 - `Flow`: boosts passive score gain.
 - `Shield`: adds starting shield charges per level.
 - `Scanner`: improves warning timing for advanced enemy behavior.
+- `Hyperdrive`: consumable emergency phase-dash charge for lethal-hit recovery windows.
 
-Each upgrade branch has `Lv 0` to `Lv 6`.
+Core upgrade branches have `Lv 0` to `Lv 6` (`Flow`, `Shield`, `Scanner`).
+`Hyperdrive` is not level-based: each purchase adds one ready charge.
 
 Upgrade costs by level:
 
 - `Flow`: 3, 5, 8, 11, 16, 22 Scrap
 - `Shield`: 2, 4, 7, 10, 14, 19 Scrap
 - `Scanner`: 3, 5, 8, 11, 15, 20 Scrap
+- `Hyperdrive`: 100 Scrap per charge (up to 2 ready)
 
 ## Run Perks
 
@@ -81,6 +91,15 @@ Paradox Lens feedback flow:
 - `Lane Blast Missed`: charge spent on switch but no valid targets in destination lane.
 - `Paradox Faded`: charge expired before use.
 
+## Perk Tree (Family Progression)
+
+Perk choices also advance a persistent family tree:
+
+- Families: `Tempo`, `Precision`, `Safety`
+- Each family progresses from `Lv 0` to `Lv 3`
+- At `Lv 3`, each family unlocks a permanent boost
+- Tree nodes are read-only UI; progression still comes from run perk selections
+
 ## Events
 
 Events define macro pacing and enemy pressure:
@@ -95,8 +114,10 @@ After the first Collapse, phases can rotate between Cruise/Overdrive/Collapse in
 
 ## Progression Depth
 
-- Permanent progression: `3` branches x `6` levels (`18` total levels).
-- Run perk pool: `6` perks across `3` families.
+- Core upgrades: `3` branches x `6` levels (`18` total levels)
+- Hyperdrive stock: `0` to `2` ready consumable charges
+- Perk tree: `3` families x `3` levels with permanent family boosts
+- Run perk pool: `6` perks across `3` families
 
 ## Local Play
 

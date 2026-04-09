@@ -131,6 +131,21 @@
           <div id="upgrade-status" class="upgrade-status" aria-live="polite">Earn 1 scrap every 20 score</div>
         </div>
       </aside>
+
+      <aside class="perk-tree mobile-collapsible" aria-label="Perk tree progression">
+        <div class="scoreboard-head perk-tree-head">
+          <div class="scoreboard-head-copy">
+            <div class="label">Perk Tree</div>
+            <div id="perk-tree-subcopy" class="scoreboard-sub" aria-live="polite">Hover or tap nodes for details</div>
+          </div>
+          <button id="perk-tree-toggle" class="mobile-panel-toggle" type="button" aria-expanded="false" aria-controls="perk-tree-body" data-closed-label="Show Tree" data-open-label="Hide Tree">Show Tree</button>
+        </div>
+        <div id="perk-tree-body" class="perk-tree-body">
+          <div class="perk-tree-scroller">
+            <svg id="perk-tree-canvas" class="perk-tree-canvas" viewBox="0 0 288 184" role="img" aria-label="Perk family progression tree"></svg>
+          </div>
+        </div>
+      </aside>
     </div>
   </main>
 

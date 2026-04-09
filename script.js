@@ -38,15 +38,21 @@ const upgradesSubcopyEl = document.getElementById('upgrades-subcopy');
 const upgradeStatusEl = document.getElementById('upgrade-status');
 const upgradesToggleButton = document.getElementById('upgrades-toggle');
 const upgradesPanelEl = document.querySelector('.upgrades.mobile-collapsible');
+const perkTreeToggleButton = document.getElementById('perk-tree-toggle');
+const perkTreePanelEl = document.querySelector('.perk-tree.mobile-collapsible');
+const perkTreeCanvasEl = document.getElementById('perk-tree-canvas');
+const perkTreeTooltipEl = document.getElementById('perk-tree-subcopy');
 const saveStatusEl = document.getElementById('save-status');
-const mobilePanelQuery = window.matchMedia('(max-width: 640px)');
+const mobilePanelQuery = window.matchMedia('(max-width: 760px)');
 let mobilePanelMode = null;
 let lastPerkTooltipAt = 0;
+let lastPerkTreeTooltipAt = 0;
 
 const STORAGE_KEY = 'drift-best-score';
 const PROGRESS_STORAGE_KEY = 'drift-progress';
 const PROGRESS_SCHEMA_VERSION = 1;
 const UPGRADE_KEY = 'drift-upgrades-v02';
+const PERK_TREE_KEY = 'drift-perk-tree-v01';
 const LATEST_SCORE_KEY = 'drift-latest-score-v01';
 const LEADERBOARD_LIMIT = 10;
 const UPGRADE_POINT_STEP = 20;
@@ -73,6 +79,38 @@ const PARADOX_BLAST_MAX_TARGETS = 2;
 const PARADOX_LANE_SLOW_DURATION = 1.0;
 const PARADOX_LANE_SLOW_MULTIPLIER = 0.85;
 const PARADOX_BLAST_HIT_DURATION = 0.14;
+const MAX_FAMILY_PERK_LEVEL = 3;
+const FAMILY_IDS = Object.freeze({
+  tempo: 'tempo',
+  precision: 'precision',
+  safety: 'safety'
+});
+const FAMILY_LEVEL_DEFS = Object.freeze({
+  [FAMILY_IDS.tempo]: { label: 'Tempo', color: '#e76565', tint: 'rgba(255, 132, 132, 0.25)' },
+  [FAMILY_IDS.precision]: { label: 'Precision', color: '#6191f7', tint: 'rgba(129, 171, 255, 0.25)' },
+  [FAMILY_IDS.safety]: { label: 'Safety', color: '#5eba7d', tint: 'rgba(131, 219, 160, 0.25)' }
+});
+const FAMILY_PERMANENT_BOOSTS = Object.freeze({
+  [FAMILY_IDS.tempo]: { flowMultiplierOffset: 0.1, perfectDodgeBonus: 0, startingShieldBonus: 0 },
+  [FAMILY_IDS.precision]: { flowMultiplierOffset: 0, perfectDodgeBonus: 0.2, startingShieldBonus: 0 },
+  [FAMILY_IDS.safety]: { flowMultiplierOffset: 0, perfectDodgeBonus: 0, startingShieldBonus: 1 }
+});
+const TREE_FAMILY_ORDER = Object.freeze([FAMILY_IDS.tempo, FAMILY_IDS.precision, FAMILY_IDS.safety]);
+const TREE_NODE_KINDS = Object.freeze(['root', 'level1', 'level2', 'level3', 'boost']);
+const TREE_NODE_META = Object.freeze({
+  root: { title: 'Family Root', shortLabel: 'Root', y: 24, unlockLevel: 0 },
+  level1: { title: 'Level 1', shortLabel: '1', y: 56, unlockLevel: 1 },
+  level2: { title: 'Level 2', shortLabel: '2', y: 88, unlockLevel: 2 },
+  level3: { title: 'Level 3', shortLabel: '3', y: 120, unlockLevel: 3 },
+  boost: { title: 'Boost', shortLabel: 'Boost', y: 146, unlockLevel: 3 }
+});
+const TREE_LAYOUT = Object.freeze({
+  width: 288,
+  height: 184,
+  horizontalPadding: 36
+});
+const TREE_CROSS_EDGES = Object.freeze([]);
+const TREE_TOOLTIP_DEFAULT = 'Hover or tap nodes for details';
 // Gameplay tuning grouped for quick balancing passes.
 const SPAWN_FAIRNESS_TUNING = Object.freeze({
   earlyWindowDifficulty: 20,
@@ -356,6 +394,63 @@ function loadUpgrades() {
   }
 }
 
+function defaultPerkTreeState() {
+  return {
+    [FAMILY_IDS.tempo]: { level: 0, boostUnlocked: false },
+    [FAMILY_IDS.precision]: { level: 0, boostUnlocked: false },
+    [FAMILY_IDS.safety]: { level: 0, boostUnlocked: false }
+  };
+}
+
+function sanitizePerkTree(raw) {
+  const source =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? raw
+      : {};
+  const base = defaultPerkTreeState();
+  return {
+    [FAMILY_IDS.tempo]: sanitizePerkTreeFamily(source[FAMILY_IDS.tempo], base[FAMILY_IDS.tempo]),
+    [FAMILY_IDS.precision]: sanitizePerkTreeFamily(source[FAMILY_IDS.precision], base[FAMILY_IDS.precision]),
+    [FAMILY_IDS.safety]: sanitizePerkTreeFamily(source[FAMILY_IDS.safety], base[FAMILY_IDS.safety])
+  };
+}
+
+function sanitizePerkTreeFamily(rawFamily, fallback) {
+  const source =
+    rawFamily && typeof rawFamily === 'object' && !Array.isArray(rawFamily)
+      ? rawFamily
+      : {};
+  const level = Math.max(0, Math.min(MAX_FAMILY_PERK_LEVEL, Math.floor(Number(source.level) || 0)));
+  const boostUnlocked = Boolean(source.boostUnlocked) || level >= MAX_FAMILY_PERK_LEVEL;
+  return {
+    ...fallback,
+    level,
+    boostUnlocked
+  };
+}
+
+function loadPerkTree() {
+  const fallback = defaultPerkTreeState();
+  try {
+    const raw = localStorage.getItem(PERK_TREE_KEY);
+    if (!raw) {
+      return fallback;
+    }
+    const parsed = JSON.parse(raw);
+    return sanitizePerkTree(parsed);
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function persistPerkTree() {
+  try {
+    localStorage.setItem(PERK_TREE_KEY, JSON.stringify(state.perkTree));
+  } catch (error) {
+    // Ignore storage errors so gameplay can continue in restricted environments.
+  }
+}
+
 function sanitizeUpgrades(raw) {
   const source =
     raw && typeof raw === 'object' && !Array.isArray(raw)
@@ -405,9 +500,11 @@ const state = {
   runShieldCharges: 0,
   hyperdriveActiveTimer: 0,
   upgrades: loadUpgrades(),
+  perkTree: loadPerkTree(),
   perkChoices: [],
   selectedPerkId: null,
   activePerkId: null,
+  perkProgressCommittedForGameover: false,
   runPerkState: {
     perfectDodgeBonus: 0,
     baseSpeedOffset: 0,
@@ -453,8 +550,11 @@ resetProgressionUi();
 renderLeaderboard();
 positionPlayer();
 renderUpgrades();
+renderPerkTree();
+syncFamilyAuraState();
 syncPauseButton();
 syncMobilePanels(true);
+bindPerkTreeInteractions();
 
 function createSupabaseClient() {
   if (
@@ -485,6 +585,7 @@ function setMode(mode) {
   syncHyperdriveVisualState();
   syncParadoxChargeState();
   renderUpgrades();
+  renderPerkTree();
 }
 
 function syncPauseButton() {
@@ -497,7 +598,7 @@ function syncPauseButton() {
     return;
   }
   const isPaused = state.mode === 'paused';
-  pauseButton.textContent = isPaused ? '▶' : 'II';
+  pauseButton.textContent = isPaused ? '\u25B6' : 'II';
   pauseButton.setAttribute('aria-label', isPaused ? 'Resume game' : 'Pause game');
 }
 
@@ -522,10 +623,12 @@ function syncMobilePanels(forceDefault = false) {
     if (forceDefault || isInitialMobile || enteredMobile) {
       setMobilePanelState(scoreboardPanelEl, scoreboardToggleButton, false);
       setMobilePanelState(upgradesPanelEl, upgradesToggleButton, false);
+      setMobilePanelState(perkTreePanelEl, perkTreeToggleButton, false);
     }
   } else {
     setMobilePanelState(scoreboardPanelEl, scoreboardToggleButton, true);
     setMobilePanelState(upgradesPanelEl, upgradesToggleButton, true);
+    setMobilePanelState(perkTreePanelEl, perkTreeToggleButton, true);
   }
 
   mobilePanelMode = isMobile;
@@ -537,6 +640,259 @@ function currentPerk() {
 
 function selectedPerk() {
   return RUN_PERKS.find((perk) => perk.id === state.selectedPerkId) ?? null;
+}
+
+function perkFamilyId(perk) {
+  if (!perk || typeof perk.family !== 'string') {
+    return null;
+  }
+  const normalizedFamily = perk.family.trim().toLowerCase();
+  return FAMILY_LEVEL_DEFS[normalizedFamily] ? normalizedFamily : null;
+}
+
+function getFamilyLevel(familyId) {
+  return state.perkTree?.[familyId]?.level ?? 0;
+}
+
+function isFamilyBoostUnlocked(familyId) {
+  const familyState = state.perkTree?.[familyId];
+  return Boolean(familyState?.boostUnlocked) || getFamilyLevel(familyId) >= MAX_FAMILY_PERK_LEVEL;
+}
+
+function getPermanentFamilyBonuses() {
+  return Object.values(FAMILY_IDS).reduce((acc, familyId) => {
+    if (!isFamilyBoostUnlocked(familyId)) {
+      return acc;
+    }
+    const boost = FAMILY_PERMANENT_BOOSTS[familyId];
+    return {
+      flowMultiplierOffset: acc.flowMultiplierOffset + (boost.flowMultiplierOffset || 0),
+      perfectDodgeBonus: acc.perfectDodgeBonus + (boost.perfectDodgeBonus || 0),
+      startingShieldBonus: acc.startingShieldBonus + (boost.startingShieldBonus || 0)
+    };
+  }, {
+    flowMultiplierOffset: 0,
+    perfectDodgeBonus: 0,
+    startingShieldBonus: 0
+  });
+}
+
+function familyBoostCopy(familyId) {
+  if (familyId === FAMILY_IDS.tempo) {
+    return 'Permanent: +10% passive score gain.';
+  }
+  if (familyId === FAMILY_IDS.precision) {
+    return 'Permanent: +0.2 perfect dodge score.';
+  }
+  return 'Permanent: +1 starting shield each run.';
+}
+
+function escapeSvgText(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[char]);
+}
+
+function perkTreeTooltipText(node) {
+  if (!node) {
+    return '';
+  }
+  const familyLabel = FAMILY_LEVEL_DEFS[node.family].label;
+  const levelLabel = `Family Lv ${getFamilyLevel(node.family)}/${MAX_FAMILY_PERK_LEVEL}`;
+  if (node.kind === 'boost') {
+    return `${familyLabel} ${node.meta.title}: ${familyBoostCopy(node.family)} ${levelLabel}`;
+  }
+  if (node.kind === 'root') {
+    return `${familyLabel} Root: Select ${familyLabel} perks across runs to progress. ${levelLabel}`;
+  }
+  return `${familyLabel} ${node.meta.title}: progress step ${node.meta.unlockLevel}/${MAX_FAMILY_PERK_LEVEL}. ${levelLabel}`;
+}
+
+function getPerkTreeGraphData() {
+  const nodes = [];
+  const edges = [];
+  const familyCount = TREE_FAMILY_ORDER.length;
+  const span = Math.max(1, TREE_LAYOUT.width - (TREE_LAYOUT.horizontalPadding * 2));
+  const columnGap = familyCount > 1 ? span / (familyCount - 1) : 0;
+
+  TREE_FAMILY_ORDER.forEach((familyId, familyIndex) => {
+    const familyDef = FAMILY_LEVEL_DEFS[familyId];
+    const familyLevel = getFamilyLevel(familyId);
+    const branchX = TREE_LAYOUT.horizontalPadding + (familyIndex * columnGap);
+
+    TREE_NODE_KINDS.forEach((kind, nodeIndex) => {
+      const meta = TREE_NODE_META[kind];
+      const unlocked = kind === 'boost'
+        ? isFamilyBoostUnlocked(familyId)
+        : familyLevel >= meta.unlockLevel;
+      const nodeId = `${familyId}_${kind}`;
+      nodes.push({
+        id: nodeId,
+        family: familyId,
+        kind,
+        meta,
+        label: kind === 'root' ? familyDef.label : (kind === 'boost' ? meta.shortLabel : ''),
+        x: branchX,
+        y: meta.y,
+        unlocked,
+        tooltip: perkTreeTooltipText({
+          family: familyId,
+          kind,
+          meta
+        })
+      });
+
+      if (nodeIndex > 0) {
+        const prevKind = TREE_NODE_KINDS[nodeIndex - 1];
+        const prevMeta = TREE_NODE_META[prevKind];
+        const pathUnlocked = familyLevel >= meta.unlockLevel;
+        edges.push({
+          id: `${familyId}_${prevKind}_${kind}`,
+          family: familyId,
+          fromKind: prevKind,
+          toKind: kind,
+          x1: branchX,
+          y1: prevMeta.y,
+          x2: branchX,
+          y2: meta.y,
+          unlocked: pathUnlocked
+        });
+      }
+    });
+  });
+
+  TREE_CROSS_EDGES.forEach((edge) => {
+    edges.push(edge);
+  });
+
+  return { nodes, edges };
+}
+
+function renderPerkTreeTooltipText(text) {
+  if (!perkTreeTooltipEl) {
+    return;
+  }
+  perkTreeTooltipEl.textContent = TREE_TOOLTIP_DEFAULT;
+}
+
+function treeNodeRadius(kind) {
+  if (kind === 'root') {
+    return 11;
+  }
+  if (kind === 'boost') {
+    return 10;
+  }
+  return 8;
+}
+
+function renderPerkTree() {
+  if (!perkTreeCanvasEl) {
+    return;
+  }
+
+  const graph = getPerkTreeGraphData();
+  const edgeSvg = graph.edges.map((edge) => {
+    const color = edge.unlocked ? FAMILY_LEVEL_DEFS[edge.family]?.color || '#151515' : 'rgba(21, 21, 21, 0.22)';
+    const opacity = edge.unlocked ? 0.62 : 0.3;
+    const width = edge.unlocked ? 1.8 : 0.9;
+    const dx = edge.x2 - edge.x1;
+    const dy = edge.y2 - edge.y1;
+    const len = Math.max(0.0001, Math.hypot(dx, dy));
+    const ux = dx / len;
+    const uy = dy / len;
+    const startRadius = treeNodeRadius(edge.fromKind);
+    const endRadius = treeNodeRadius(edge.toKind);
+    const lineX1 = edge.x1 + (ux * startRadius);
+    const lineY1 = edge.y1 + (uy * startRadius);
+    const lineX2 = edge.x2 - (ux * endRadius);
+    const lineY2 = edge.y2 - (uy * endRadius);
+    return `<line x1="${lineX1}" y1="${lineY1}" x2="${lineX2}" y2="${lineY2}" stroke="${color}" stroke-opacity="${opacity}" stroke-width="${width}" stroke-linecap="round" />`;
+  }).join('');
+
+  const nodeSvg = graph.nodes.map((node) => {
+    const familyDef = FAMILY_LEVEL_DEFS[node.family];
+    const radius = treeNodeRadius(node.kind);
+    const fill = node.unlocked ? familyDef.tint : 'rgba(255, 255, 255, 0.3)';
+    const stroke = node.unlocked ? familyDef.color : 'rgba(21, 21, 21, 0.28)';
+    const strokeWidth = node.kind === 'boost' && node.unlocked ? 1.8 : 1.1;
+    const label = escapeSvgText(node.label);
+    const tooltip = escapeSvgText(node.tooltip);
+    const nodeClass = `perk-tree-node${node.unlocked ? ' is-unlocked' : ''}${node.kind === 'boost' ? ' is-boost' : ''}`;
+    const hasLabel = node.kind === 'root' || node.kind === 'boost';
+    const textSize = 8.2;
+    let nodeLabel = '';
+    if (hasLabel) {
+      if (node.kind === 'boost') {
+        const textY = node.y + radius + 11;
+        nodeLabel = `<text x="${node.x}" y="${textY}" class="perk-tree-node-text is-root" font-size="${textSize}" text-anchor="middle">${label}</text>`;
+      } else {
+        const textY = node.y - 14;
+        nodeLabel = `<text x="${node.x}" y="${textY}" class="perk-tree-node-text is-root" font-size="${textSize}" text-anchor="middle">${label}</text>`;
+      }
+    }
+    return `<g class="${nodeClass}" tabindex="0" role="img" aria-label="${tooltip}" data-tooltip="${tooltip}" data-node-id="${node.id}"><title>${tooltip}</title><circle cx="${node.x}" cy="${node.y}" r="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" />${nodeLabel}</g>`;
+  }).join('');
+
+  perkTreeCanvasEl.innerHTML = `
+    <g class="perk-tree-edges">${edgeSvg}</g>
+    <g class="perk-tree-nodes">${nodeSvg}</g>
+  `;
+
+  renderPerkTreeTooltipText('');
+}
+
+function syncFamilyAuraState() {
+  const hasTempo = isFamilyBoostUnlocked(FAMILY_IDS.tempo);
+  const hasPrecision = isFamilyBoostUnlocked(FAMILY_IDS.precision);
+  const hasSafety = isFamilyBoostUnlocked(FAMILY_IDS.safety);
+  const hasAura = hasTempo || hasPrecision || hasSafety;
+
+  playerEl.classList.toggle('has-family-aura', hasAura);
+  playerEl.classList.toggle('has-tempo-aura', hasTempo);
+  playerEl.classList.toggle('has-precision-aura', hasPrecision);
+  playerEl.classList.toggle('has-safety-aura', hasSafety);
+
+  const ringColors = [];
+  if (hasTempo) {
+    ringColors.push('rgba(255, 145, 145, 0.52)');
+  }
+  if (hasPrecision) {
+    ringColors.push('rgba(146, 183, 255, 0.52)');
+  }
+  if (hasSafety) {
+    ringColors.push('rgba(138, 224, 164, 0.52)');
+  }
+
+  playerEl.style.setProperty('--family-ring-1', ringColors[0] || 'transparent');
+  playerEl.style.setProperty('--family-ring-2', ringColors[1] || 'transparent');
+  playerEl.style.setProperty('--family-ring-3', ringColors[2] || 'transparent');
+}
+
+function commitPerkTreeProgressForSelectedPerk() {
+  if (state.perkProgressCommittedForGameover || state.mode !== 'gameover') {
+    return;
+  }
+  const perk = selectedPerk();
+  const familyId = perkFamilyId(perk);
+  if (!familyId || !state.perkTree[familyId]) {
+    state.perkProgressCommittedForGameover = true;
+    return;
+  }
+
+  const nextLevel = Math.min(MAX_FAMILY_PERK_LEVEL, getFamilyLevel(familyId) + 1);
+  state.perkTree[familyId].level = nextLevel;
+  if (nextLevel >= MAX_FAMILY_PERK_LEVEL) {
+    state.perkTree[familyId].boostUnlocked = true;
+  }
+
+  persistPerkTree();
+  state.perkProgressCommittedForGameover = true;
+  renderPerkTree();
+  syncFamilyAuraState();
 }
 
 function activePerkTooltipText() {
@@ -681,6 +1037,7 @@ function resetProgressionUi() {
     const perk = currentPerk();
     perkInfoCopyEl.textContent = perk ? `${perk.name} active this run.` : 'No active perk this run.';
   }
+  renderPerkTree();
 }
 
 function scrapEarnedFromScore(score) {
@@ -732,7 +1089,7 @@ function renderUpgrades() {
     upgrade.buttonEl.disabled = !canPurchase(upgrade.id);
     upgrade.buttonEl.textContent = state.upgrades[upgrade.id] >= maxLevel
       ? upgrade.maxLabel
-      : `${upgrade.buyLabel} (${upgradeCost(upgrade.id)} Scrp)`;
+      : `Buy (${upgradeCost(upgrade.id)} Scrp)`;
   });
 }
 
@@ -776,7 +1133,8 @@ function resetGame() {
   state.evadeGroupRemaining = {};
   state.latestSubmittedScore = loadLatestScore();
   applySelectedPerk();
-  state.runShieldCharges = state.upgrades.shield + state.runPerkState.startingShieldBonus;
+  const permanentBonuses = getPermanentFamilyBonuses();
+  state.runShieldCharges = state.upgrades.shield + state.runPerkState.startingShieldBonus + permanentBonuses.startingShieldBonus;
   clearTimeout(state.switchPulseTimeout);
   clearTimeout(state.feedbackTimeout);
   clearTimeout(state.scoreFlashTimeout);
@@ -807,9 +1165,11 @@ function resetGame() {
   positionPlayer();
   resetProgressionUi();
   renderUpgrades();
+  syncFamilyAuraState();
 }
 
 function startGame() {
+  commitPerkTreeProgressForSelectedPerk();
   resetGame();
   state.countdown = 3;
   setMode('countdown');
@@ -850,6 +1210,7 @@ function gameOver() {
   }
 
   rollPerkChoices();
+  state.perkProgressCommittedForGameover = false;
   renderPerkChoices();
   const pendingPerk = selectedPerk();
   if (perkInfoCopyEl) {
@@ -926,7 +1287,7 @@ async function submitScore() {
 
   const rawName = playerNameEl.value.trim();
   const cheatToken = rawName.toLowerCase();
-  if (cheatToken === '100scraps') {
+  if (cheatToken === '100scrp') {
     state.upgrades.points += 100;
     persistUpgrades();
     renderUpgrades();
@@ -1018,6 +1379,70 @@ function showFeedback(message, duration = 560) {
   }, scaledDuration);
 }
 
+function perkTreeNodeFromTarget(target) {
+  if (!target || typeof target.closest !== 'function') {
+    return null;
+  }
+  return target.closest('[data-tooltip]');
+}
+
+function bindPerkTreeInteractions() {
+  if (!perkTreeCanvasEl) {
+    return;
+  }
+
+  perkTreeCanvasEl.addEventListener('pointerover', (event) => {
+    const node = perkTreeNodeFromTarget(event.target);
+    if (!node) {
+      return;
+    }
+    renderPerkTreeTooltipText(node.getAttribute('data-tooltip') || '');
+  });
+
+  perkTreeCanvasEl.addEventListener('focusin', (event) => {
+    const node = perkTreeNodeFromTarget(event.target);
+    if (!node) {
+      return;
+    }
+    renderPerkTreeTooltipText(node.getAttribute('data-tooltip') || '');
+  });
+
+  perkTreeCanvasEl.addEventListener('pointerout', (event) => {
+    const node = perkTreeNodeFromTarget(event.target);
+    if (!node) {
+      return;
+    }
+    renderPerkTreeTooltipText('');
+  });
+
+  perkTreeCanvasEl.addEventListener('focusout', (event) => {
+    const node = perkTreeNodeFromTarget(event.target);
+    if (!node) {
+      return;
+    }
+    renderPerkTreeTooltipText('');
+  });
+
+  perkTreeCanvasEl.addEventListener('pointerdown', (event) => {
+    const node = perkTreeNodeFromTarget(event.target);
+    if (!node) {
+      return;
+    }
+    const pointerType = event.pointerType || '';
+    if (pointerType === 'mouse') {
+      return;
+    }
+    const now = performance.now();
+    if (now - lastPerkTreeTooltipAt < 520) {
+      return;
+    }
+    lastPerkTreeTooltipAt = now;
+    const tooltip = node.getAttribute('data-tooltip') || '';
+    renderPerkTreeTooltipText(tooltip);
+    showFeedback(tooltip, 920);
+  });
+}
+
 function triggerCountdownPop() {
   countdownEl.classList.remove('is-pop');
   void countdownEl.offsetWidth;
@@ -1050,7 +1475,8 @@ function triggerNearMissFeedback() {
 }
 
 function awardPerfectDodge() {
-  const perfectDodgeBonus = 0.5 + state.runPerkState.perfectDodgeBonus;
+  const permanentBonuses = getPermanentFamilyBonuses();
+  const perfectDodgeBonus = 0.5 + state.runPerkState.perfectDodgeBonus + permanentBonuses.perfectDodgeBonus;
   state.score += perfectDodgeBonus;
   scoreEl.textContent = state.score.toFixed(1);
   flashScoreLabel();
@@ -1755,8 +2181,9 @@ function loop(timestamp) {
   const dt = Math.min((timestamp - state.lastTime) / 1000, 0.033);
   state.lastTime = timestamp;
 
+  const permanentBonuses = getPermanentFamilyBonuses();
   const hyperdriveScoreMultiplier = state.hyperdriveActiveTimer > 0 ? HYPERDRIVE_SCORE_MULTIPLIER : 1;
-  const flowMultiplier = Math.max(0.5, 1 + (state.upgrades.flow * 0.11) + state.runPerkState.flowMultiplierOffset) * hyperdriveScoreMultiplier;
+  const flowMultiplier = Math.max(0.5, 1 + (state.upgrades.flow * 0.11) + state.runPerkState.flowMultiplierOffset + permanentBonuses.flowMultiplierOffset) * hyperdriveScoreMultiplier;
   state.score += dt * flowMultiplier;
   state.graceTime = Math.max(0, state.graceTime - dt);
   state.difficultyScore += dt * (state.hyperdriveActiveTimer > 0 ? 1.85 : 1);
@@ -1985,6 +2412,13 @@ upgradesToggleButton?.addEventListener('click', () => {
   }
   const expanded = !upgradesPanelEl.classList.contains('is-open');
   setMobilePanelState(upgradesPanelEl, upgradesToggleButton, expanded);
+});
+perkTreeToggleButton?.addEventListener('click', () => {
+  if (!mobilePanelQuery.matches || !perkTreePanelEl) {
+    return;
+  }
+  const expanded = !perkTreePanelEl.classList.contains('is-open');
+  setMobilePanelState(perkTreePanelEl, perkTreeToggleButton, expanded);
 });
 
 window.addEventListener('resize', () => {
