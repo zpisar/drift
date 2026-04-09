@@ -2418,7 +2418,35 @@ frame.addEventListener('pointerdown', (event) => {
   if (event.target.closest('.overlay')) {
     return;
   }
+  if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+    event.preventDefault();
+  }
   toggleLane();
+});
+frame.addEventListener('touchend', (event) => {
+  if (!canControlGameplay()) {
+    return;
+  }
+  if (event.target.closest('#pause-button')) {
+    return;
+  }
+  if (event.target.closest('.overlay')) {
+    return;
+  }
+  event.preventDefault();
+}, { passive: false });
+frame.addEventListener('dblclick', (event) => {
+  if (!canControlGameplay()) {
+    return;
+  }
+  if (event.target.closest('#pause-button')) {
+    return;
+  }
+  if (event.target.closest('.overlay')) {
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
 });
 pauseButton?.addEventListener('click', (event) => {
   event.preventDefault();
