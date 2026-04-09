@@ -1,15 +1,13 @@
-# Drift Pilot Manual
+# Drift
 
 Drift is a minimalist deep-space lane survival game about timing, pressure, and surviving one more second.
 
-Runs are short. Progression persists locally. Every run feeds permanent upgrades while run perks shape your next build.
+Progression persists locally. Every run feeds permanent upgrades while run perks shape your next build.
 
-## World Brief
+## Isolation, speed, and cosmic dread.
 
 Earth's high-tech civilization collapsed in a chain event.
 You are a Drifter flying blind through unstable lanes, scavenging signal and scrap in hostile space.
-
-Tone target: isolation, speed, and cosmic dread.
 
 ## Play Online
 
@@ -23,7 +21,7 @@ Play in your browser through GitHub Pages:
 - Each input switches between two lanes.
 - Dodge incoming threats by moving to the safe lane.
 - Survive longer to raise score and pressure.
-- After game over, save your run to the top-10 leaderboard (`Drifter` is used if name is empty).
+- After game over, save your run to the top-10 leaderboard.
 
 ## HUD Readout
 
@@ -119,10 +117,6 @@ After the first Collapse, phases can rotate between Cruise, Overdrive, and Colla
 - Hyperdrive stock: `0` to `2` ready consumable charges
 - Perk tree: `3` families x `3` levels with permanent family boosts
 - Run perk pool: `7` perks across `3` families
-
-## Local Play
-
-Open `index.html` in a browser. No install step is required.
 
 ## Local Saves
 
