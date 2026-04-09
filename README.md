@@ -1,15 +1,15 @@
-# Drift
+# Drift Pilot Manual
 
-Drift is a minimalist deep-space lane survival game about timing, pressure, and staying alive for one more second.
+Drift is a minimalist deep-space lane survival game about timing, pressure, and surviving one more second.
 
-Runs are short, progression persists locally, and each retry feeds long-term upgrades while your run perk choices shape a distinct build every attempt.
+Runs are short. Progression persists locally. Every run feeds permanent upgrades while run perks shape your next build.
 
-## World Backstory
+## World Brief
 
-Earth’s high-tech civilization collapsed in a sudden apocalyptic chain event.  
-You are one of the last drifters who escaped into deep space, flying blind through unstable lanes, chasing scraps of signal and survival.
+Earth's high-tech civilization collapsed in a chain event.
+You are a Drifter flying blind through unstable lanes, scavenging signal and scrap in hostile space.
 
-The tone is isolation, speed, and cosmic dread: surviving one more run while the void gets louder.
+Tone target: isolation, speed, and cosmic dread.
 
 ## Play Online
 
@@ -17,36 +17,36 @@ Play in your browser through GitHub Pages:
 
 [Drift on GitHub Pages](https://zpisar.github.io/drift/)
 
-## How to Play
+## Control Protocol
 
 - Press `Space` on desktop, or tap the playfield on touch devices.
-- Each input switches between the two lanes.
-- Dodge incoming threats by moving into the safe lane.
-- Survive to raise score and difficulty.
+- Each input switches between two lanes.
+- Dodge incoming threats by moving to the safe lane.
+- Survive longer to raise score and pressure.
 - After game over, save your run to the top-10 leaderboard (`Drifter` is used if name is empty).
 
-## HUD Guide
+## HUD Readout
 
 - `Score`: current run score.
-- `Scrap`: Scrap earned this run. You earn `1 Scrap every 20 score`.
+- `Scrap`: scrap earned this run (`1 Scrap` every `20 score`).
 - `Shields`: current run shield charges.
-- `Active Perk`: currently active run perk (hover on desktop / tap on mobile for tooltip copy). Shows `(Charged)` while Paradox Lens is armed.
+- `Active Perk`: active run perk (hover on desktop / tap on mobile for tooltip copy). Shows `(Charged)` while Paradox Lens is armed.
 - `Event`: current world state (`Warmup`, `Cruise`, `Overdrive`, `Collapse`).
 - `Best`: best locally saved score.
 
-## Enemies
+## Threat Catalog
 
-- `Normal`: baseline fast lane blocker.
-- `Heavy`: larger blocker with higher threat profile and telegraph styling.
-- `Phantom`: lane-swap enemy that telegraphs before crossing lanes.
-- `Splitter`: telegraphs then splits into two fragments across both lanes.
-- `Splitter Fragment`: faster follow-up shard created by a Splitter split.
+- `Normal`: baseline lane blocker.
+- `Heavy`: larger blocker with telegraph styling.
+- `Phantom`: telegraphs, then swaps lane mid-approach.
+- `Splitter`: telegraphs, then splits into two fragments across both lanes.
+- `Splitter Fragment`: faster shard created by a Splitter split.
 
 Scanner upgrades improve warning timing for Phantom swaps and Splitter splits.
 
-## Scrap And Upgrades
+## Scrap Economy And Upgrades
 
-Scrap is the permanent currency. At game over, run Scrap is added to your saved total.
+Scrap is permanent currency. At game over, run scrap is added to your saved total.
 
 Upgrades can be purchased only between runs.
 
@@ -55,8 +55,8 @@ Upgrades can be purchased only between runs.
 - `Scanner`: improves warning timing for advanced enemy behavior.
 - `Hyperdrive`: consumable emergency phase-dash charge for lethal-hit recovery windows.
 
-Core upgrade branches have `Lv 0` to `Lv 6` (`Flow`, `Shield`, `Scanner`).
-`Hyperdrive` is not level-based: each purchase adds one ready charge.
+Core branches have `Lv 0` to `Lv 6` (`Flow`, `Shield`, `Scanner`).
+`Hyperdrive` is charge-based, not level-based.
 
 Upgrade costs by level:
 
@@ -65,9 +65,9 @@ Upgrade costs by level:
 - `Scanner`: 3, 5, 8, 11, 15, 20 Scrap
 - `Hyperdrive`: 100 Scrap per charge (up to 2 ready)
 
-## Run Perks
+## Run Perk Rotation
 
-At game over you get a `2-choice` perk offer for the next run.
+At game over you receive a `2-choice` perk offer for the next run.
 
 Perk families:
 
@@ -78,11 +78,12 @@ Perk families:
 Current perk pool:
 
 - `Tempo - Afterburn Rhythm`: perfect dodges trigger short rhythm windows with slower spawns.
-- `Tempo - Chaos Reactor`: extreme base speed pressure, tighter dodge timing, and powerful slowdown pulse on perfect dodges.
+- `Tempo - Chaos Reactor`: extreme base speed pressure, tighter dodge timing, and a powerful slowdown pulse on perfect dodges.
 - `Precision - Deadeye Line`: wider perfect-dodge window and extra dodge score with lower passive gain.
 - `Precision - Paradox Lens`: perfect dodges charge your next lane switch. The next switch triggers a `Lane Blast` in the destination lane, consumes the charge, destroys up to 2 nearest incoming threats, and applies a short lane-only slow (`0.85x` for `1.0s`).
 - `Safety - Guardrail Protocol`: +1 starting shield with calmer pace and lower perfect-dodge reward.
 - `Safety - Emergency Stasis`: +2 starting shields with stronger slowdown pulse behavior, balanced by weaker economy tempo.
+- `Safety - Last Signal`: the first otherwise-lethal hit per run is consumed, triggering an extended emergency time-dilation window (`2.7s`) and an instant `+1.5` score pulse instead of immediate game over.
 
 Paradox Lens feedback flow:
 
@@ -98,9 +99,9 @@ Perk choices also advance a persistent family tree:
 - Families: `Tempo`, `Precision`, `Safety`
 - Each family progresses from `Lv 0` to `Lv 3`
 - At `Lv 3`, each family unlocks a permanent boost
-- Tree nodes are read-only UI; progression still comes from run perk selections
+- Tree nodes are read-only UI; progression comes from run perk selections
 
-## Events
+## Event Phases
 
 Events define macro pacing and enemy pressure:
 
@@ -110,14 +111,14 @@ Events define macro pacing and enemy pressure:
 - `Collapse`: maximum pressure state with peak speed/spawn intensity.
 - `Surge!`: short burst event during Cruise/Overdrive that briefly spikes spawn tempo and movement speed.
 
-After the first Collapse, phases can rotate between Cruise/Overdrive/Collapse instead of ending immediately.
+After the first Collapse, phases can rotate between Cruise, Overdrive, and Collapse instead of ending immediately.
 
 ## Progression Depth
 
 - Core upgrades: `3` branches x `6` levels (`18` total levels)
 - Hyperdrive stock: `0` to `2` ready consumable charges
 - Perk tree: `3` families x `3` levels with permanent family boosts
-- Run perk pool: `6` perks across `3` families
+- Run perk pool: `7` perks across `3` families
 
 ## Local Play
 
@@ -125,7 +126,7 @@ Open `index.html` in a browser. No install step is required.
 
 ## Local Saves
 
-Best score, latest submitted score, Scrap, and upgrade levels are stored in browser `localStorage`.
+Best score, latest submitted score, scrap, and upgrade levels are stored in browser `localStorage`.
 
 ## License
 

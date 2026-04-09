@@ -79,6 +79,11 @@ const PARADOX_BLAST_MAX_TARGETS = 2;
 const PARADOX_LANE_SLOW_DURATION = 1.0;
 const PARADOX_LANE_SLOW_MULTIPLIER = 0.85;
 const PARADOX_BLAST_HIT_DURATION = 0.14;
+const LAST_SIGNAL_STASIS_DURATION = 2.7;
+const LAST_SIGNAL_STASIS_SPEED_MULTIPLIER = 0.58;
+const LAST_SIGNAL_STASIS_SPAWN_DELAY_MULTIPLIER = 1.32;
+const LAST_SIGNAL_POST_TRIGGER_GRACE = 0.5;
+const LAST_SIGNAL_TRIGGER_SCORE_BONUS = 1.5;
 const MAX_FAMILY_PERK_LEVEL = 3;
 const FAMILY_IDS = Object.freeze({
   tempo: 'tempo',
@@ -249,6 +254,21 @@ const RUN_PERKS = [
     tempoWindowDuration: 2.1,
     tempoSpawnDelayMultiplier: 1.4,
     tempoSpeedOffset: -92
+  },
+  {
+    id: 'safety_last_signal',
+    family: 'Safety',
+    name: 'Last Signal',
+    description: 'First lethal hit per run triggers emergency time dilation instead of game over.',
+    perfectDodgeBonus: -0.2,
+    baseSpeedOffset: 0,
+    flowMultiplierOffset: -0.08,
+    perfectDodgeWindowBonus: 0,
+    startingShieldBonus: 0,
+    tempoWindowDuration: 0,
+    tempoSpawnDelayMultiplier: 1,
+    tempoSpeedOffset: 0,
+    lastSignalEnabled: true
   }
 ];
 const HEAVY_OBSTACLE_DIFFICULTY_THRESHOLD = 25;
@@ -516,10 +536,13 @@ const state = {
     tempoSpeedOffset: 0,
     paradoxWindowDuration: 0,
     paradoxRewindDistance: 0,
-    paradoxBonusScore: 0
+    paradoxBonusScore: 0,
+    lastSignalEnabled: false
   },
   perkTempoTimer: 0,
   precisionParadoxTimer: 0,
+  lastSignalUsed: false,
+  lastSignalStasisTimer: 0,
   recentSpawnTypes: [],
   eventLabel: 'Warmup',
   eventPhase: 'Warmup',
@@ -950,10 +973,13 @@ function applySelectedPerk() {
     tempoSpeedOffset: perk ? perk.tempoSpeedOffset : 0,
     paradoxWindowDuration: perk ? perk.paradoxWindowDuration || 0 : 0,
     paradoxRewindDistance: perk ? perk.paradoxRewindDistance || 0 : 0,
-    paradoxBonusScore: perk ? perk.paradoxBonusScore || 0 : 0
+    paradoxBonusScore: perk ? perk.paradoxBonusScore || 0 : 0,
+    lastSignalEnabled: perk ? Boolean(perk.lastSignalEnabled) : false
   };
   state.perkTempoTimer = 0;
   state.precisionParadoxTimer = 0;
+  state.lastSignalUsed = false;
+  state.lastSignalStasisTimer = 0;
   state.paradoxChargeVisualActive = false;
   syncParadoxChargeState();
   syncActivePerkHud();
@@ -1127,6 +1153,8 @@ function resetGame() {
   state.surgeSpawnTimerBoosted = false;
   state.hyperdriveActiveTimer = 0;
   state.precisionParadoxTimer = 0;
+  state.lastSignalUsed = false;
+  state.lastSignalStasisTimer = 0;
   state.scannerCueCooldown = 0;
   state.paradoxLaneSlow = { lane: null, timer: 0, multiplier: 1 };
   state.nextEvadeGroupId = 1;
@@ -2218,6 +2246,16 @@ function loop(timestamp) {
     showFeedback('Paradox Faded', 700);
   }
   syncParadoxChargeState();
+  state.lastSignalStasisTimer = Math.max(0, state.lastSignalStasisTimer - dt);
+  const lastSignalStasisActive = state.lastSignalStasisTimer > 0;
+  if (lastSignalStasisActive) {
+    state.speed = clamp(state.speed * LAST_SIGNAL_STASIS_SPEED_MULTIPLIER, MIN_SPEED, MAX_SPEED);
+    state.spawnDelay = clamp(
+      state.spawnDelay * LAST_SIGNAL_STASIS_SPAWN_DELAY_MULTIPLIER,
+      MIN_SPAWN_DELAY,
+      BASE_SPAWN_DELAY * 1.24
+    );
+  }
   if (state.paradoxLaneSlow.timer > 0) {
     state.paradoxLaneSlow.timer = Math.max(0, state.paradoxLaneSlow.timer - dt);
     if (state.paradoxLaneSlow.timer <= 0) {
@@ -2308,6 +2346,17 @@ function loop(timestamp) {
         renderUpgrades();
         removeObstacleAt(i, false);
         startHyperdrive();
+        continue;
+      }
+      if (state.runPerkState.lastSignalEnabled && !state.lastSignalUsed) {
+        state.lastSignalUsed = true;
+        state.lastSignalStasisTimer = LAST_SIGNAL_STASIS_DURATION;
+        state.graceTime = Math.max(state.graceTime, LAST_SIGNAL_POST_TRIGGER_GRACE);
+        state.score += LAST_SIGNAL_TRIGGER_SCORE_BONUS;
+        scoreEl.textContent = state.score.toFixed(1);
+        flashScoreLabel();
+        removeObstacleAt(i, false);
+        showFeedback(`Last Signal Triggered! +${LAST_SIGNAL_TRIGGER_SCORE_BONUS.toFixed(1)}`, 900);
         continue;
       }
       gameOver();
