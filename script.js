@@ -9,10 +9,12 @@ const startButton = document.getElementById('start-button');
 const storyStartButton = document.getElementById('story-start-button');
 const storyContinueButton = document.getElementById('story-continue-button');
 const logsButton = document.getElementById('logs-button');
+const storyDebugToggleButton = document.getElementById('story-debug-toggle-button');
 const saveScoreButton = document.getElementById('save-score-button');
 const restartButton = document.getElementById('restart-button');
 const countdownEl = document.getElementById('countdown');
 const pauseButton = document.getElementById('pause-button');
+const storyDebugNextButton = document.getElementById('story-debug-next-button');
 const playerNameEl = document.getElementById('player-name');
 const overlayOverTitleEl = document.getElementById('overlay-over-title');
 const overlayStory = document.getElementById('overlay-story');
@@ -74,6 +76,7 @@ const PERK_TREE_KEY = 'drift-perk-tree-v01';
 const LATEST_SCORE_KEY = 'drift-latest-score-v01';
 const STORY_PROGRESS_KEY = 'drift-story-v11';
 const STORY_PROGRESS_SCHEMA_VERSION = 1;
+const STORY_DEBUG_KEY = 'drift-story-debug-v01';
 const LEADERBOARD_LIMIT = 10;
 const UPGRADE_POINT_STEP = 20;
 const UPGRADE_SCRAP_PER_STEP = 1;
@@ -200,12 +203,50 @@ function parseSceneLines(block) {
 }
 
 const STORY_EPISODES = Object.freeze([
-  { sceneId: 'episode_1', title: 'Wake Signal', targetPhase: 'Warmup', holdSeconds: 12, mood: 'wake', spawnBias: 'wake' },
-  { sceneId: 'episode_2', title: 'Ghost Lanes', targetPhase: 'Cruise', holdSeconds: 16, mood: 'ghost', spawnBias: 'phantom_focus' },
-  { sceneId: 'episode_3', title: 'Shatter Corridor', targetPhase: 'Overdrive', holdSeconds: 20, mood: 'shatter', spawnBias: 'splitter_focus' },
-  { sceneId: 'episode_4', title: 'Collapse Chain', targetPhase: 'Collapse', holdSeconds: 24, mood: 'collapse', spawnBias: 'collapse_recurrence' },
-  { sceneId: 'episode_5', title: 'Last Drift', targetPhase: 'Collapse', holdSeconds: 30, mood: 'last', spawnBias: 'final_mix' }
+  { sceneId: 'episode_1', title: 'Wake Signal', eventId: 'Warmup', holdSeconds: 12, mood: 'wake', spawnProfile: 'warmup' },
+  { sceneId: 'episode_2', title: 'Ghost Lanes', eventId: 'Cruise', holdSeconds: 16, mood: 'ghost', spawnProfile: 'phantom_focus' },
+  { sceneId: 'episode_3', title: 'Shatter Corridor', eventId: 'Overdrive', holdSeconds: 20, mood: 'shatter', spawnProfile: 'splitter_focus' },
+  { sceneId: 'episode_4', title: 'Collapse Chain', eventId: 'Collapse', holdSeconds: 24, mood: 'collapse', spawnProfile: 'collapse_recurrence' },
+  { sceneId: 'episode_5', title: 'Last Drift', eventId: 'Final Relay', holdSeconds: 30, mood: 'last', spawnProfile: 'final_relay' }
 ]);
+
+const STORY_EVENT_PROFILES = Object.freeze({
+  Warmup: {
+    eventLabel: 'Warmup',
+    speedRange: [170, 232],
+    spawnDelayRange: [1.08, 0.82],
+    spawnProfile: 'warmup',
+    lanePressure: 0
+  },
+  Cruise: {
+    eventLabel: 'Cruise',
+    speedRange: [250, 358],
+    spawnDelayRange: [0.78, 0.54],
+    spawnProfile: 'phantom_focus',
+    lanePressure: 0.04
+  },
+  Overdrive: {
+    eventLabel: 'Overdrive',
+    speedRange: [355, 512],
+    spawnDelayRange: [0.58, 0.34],
+    spawnProfile: 'splitter_focus',
+    lanePressure: 0.08
+  },
+  Collapse: {
+    eventLabel: 'Collapse',
+    speedRange: [465, MAX_SPEED],
+    spawnDelayRange: [0.43, MIN_SPAWN_DELAY],
+    spawnProfile: 'collapse_recurrence',
+    lanePressure: 0.14
+  },
+  'Final Relay': {
+    eventLabel: 'Final Relay',
+    speedRange: [512, MAX_SPEED],
+    spawnDelayRange: [0.34, MIN_SPAWN_DELAY],
+    spawnProfile: 'final_relay',
+    lanePressure: 0.2
+  }
+});
 
 const STORY_SCENE_ORDER = Object.freeze([
   ...STORY_EPISODES.map((episode) => episode.sceneId),
@@ -825,6 +866,28 @@ function persistStoryProgress() {
   }
 }
 
+function loadStoryDebugEnabled() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const queryFlag = String(params.get('storyDebug') || '').trim().toLowerCase();
+    if (queryFlag === '1' || queryFlag === 'true' || queryFlag === 'on') {
+      return true;
+    }
+    const stored = String(localStorage.getItem(STORY_DEBUG_KEY) || '').trim().toLowerCase();
+    return stored === '1' || stored === 'true' || stored === 'on';
+  } catch (error) {
+    return false;
+  }
+}
+
+function persistStoryDebugEnabled() {
+  try {
+    localStorage.setItem(STORY_DEBUG_KEY, state.storyDebugEnabled ? '1' : '0');
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
 function hasSeenStoryScene(sceneId) {
   return state.story.seenSceneIds.includes(sceneId);
 }
@@ -846,6 +909,7 @@ function markStorySceneSeen(sceneId) {
 const initialProgress = loadProgress();
 const initialLatestScore = loadLatestScore();
 const initialStoryProgress = loadStoryProgress();
+const initialStoryDebugEnabled = loadStoryDebugEnabled();
 
 const state = {
   mode: 'start',
@@ -914,6 +978,7 @@ const state = {
   nextEvadeGroupId: 1,
   evadeGroupRemaining: {},
   nextGameplayMode: 'playing',
+  storyDebugEnabled: initialStoryDebugEnabled,
   story: initialStoryProgress,
   storySessionActive: false,
   storyCutsceneRuntime: null,
@@ -921,7 +986,8 @@ const state = {
   storyPostcreditFromLogs: false,
   storyEpisodeProgress: {
     episodeIndex: null,
-    targetPhase: null,
+    targetEvent: null,
+    spawnProfile: null,
     holdSeconds: 0,
     heldSeconds: 0,
     lastAnnouncedRemaining: null
@@ -944,6 +1010,7 @@ syncMobilePanels(true);
 bindPerkTreeInteractions();
 syncStorySessionVisualState();
 syncStoryStartButtons();
+syncStoryDebugControls();
 
 function createSupabaseClient() {
   if (
@@ -990,6 +1057,37 @@ function syncStoryStartButtons() {
   storyStartButton.textContent = state.story.campaignComplete ? 'Replay Story' : 'Start Story';
 }
 
+function syncStoryDebugControls() {
+  if (storyDebugToggleButton) {
+    storyDebugToggleButton.textContent = `Story Debug: ${state.storyDebugEnabled ? 'On' : 'Off'}`;
+    storyDebugToggleButton.setAttribute('aria-pressed', String(state.storyDebugEnabled));
+  }
+  if (storyDebugNextButton) {
+    const isVisible = state.storyDebugEnabled && state.mode === 'story_playing';
+    storyDebugNextButton.hidden = !isVisible;
+  }
+  if (state.storyCutsceneRuntime && state.storyDebugEnabled) {
+    state.storyCutsceneRuntime.canSkip = true;
+    storySkipButton.hidden = false;
+  }
+}
+
+function toggleStoryDebugMode() {
+  state.storyDebugEnabled = !state.storyDebugEnabled;
+  persistStoryDebugEnabled();
+  syncStoryDebugControls();
+  showFeedback(state.storyDebugEnabled ? 'Story Debug Enabled' : 'Story Debug Disabled', 900);
+}
+
+function debugCompleteCurrentStoryEpisode() {
+  if (!state.storyDebugEnabled || state.mode !== 'story_playing') {
+    return false;
+  }
+  showFeedback('Debug: advancing to next episode', 900);
+  completeStoryEpisode();
+  return true;
+}
+
 function clearStoryCutsceneTimers() {
   if (!state.storyCutsceneRuntime) {
     return;
@@ -1010,7 +1108,8 @@ function resetStoryRuntimeState() {
   state.storyPostcreditFromLogs = false;
   state.storyEpisodeProgress = {
     episodeIndex: null,
-    targetPhase: null,
+    targetEvent: null,
+    spawnProfile: null,
     holdSeconds: 0,
     heldSeconds: 0,
     lastAnnouncedRemaining: null
@@ -1025,24 +1124,64 @@ function syncStorySessionVisualState() {
 }
 
 function syncStoryCinematicFrame() {
+  const isStoryGameplayMode = state.mode === 'story_playing' || state.mode === 'story_paused';
+  const isStoryCutsceneMode = state.mode === 'story_cutscene';
+  const isStoryPostcreditMode = state.mode === 'story_postcredit';
+  const isStoryCinematicMode = isStoryGameplayMode || isStoryCutsceneMode || isStoryPostcreditMode;
+  const episodeBaseIntensity = [0.18, 0.33, 0.5, 0.68, 0.86];
   let mood = null;
-  if (state.mode === 'story_cutscene' && state.storyCutsceneRuntime) {
+  let resolveState = 'none';
+  let intensity = 0;
+  let hope = 0;
+  if (isStoryCutsceneMode && state.storyCutsceneRuntime) {
     const sceneId = state.storyCutsceneRuntime.sceneId;
+    const scene = STORY_SCENES[sceneId];
+    const totalLines = Math.max(1, scene?.lines?.length || 1);
+    const currentLine = scene?.lines?.[state.storyCutsceneRuntime.lineIndex] || '';
+    const lineReveal = Math.max(1, currentLine.length);
+    const sceneProgress = clamp(
+      (state.storyCutsceneRuntime.lineIndex + (state.storyCutsceneRuntime.revealIndex / lineReveal)) / totalLines,
+      0,
+      1
+    );
     const matchingEpisode = STORY_EPISODES.find((episode) => episode.sceneId === sceneId);
     if (matchingEpisode) {
       mood = matchingEpisode.mood;
+      const episodeIndex = STORY_EPISODES.findIndex((episode) => episode.sceneId === sceneId);
+      const base = episodeBaseIntensity[Math.max(0, Math.min(episodeBaseIntensity.length - 1, episodeIndex))] ?? 0.18;
+      intensity = clamp(base + sceneProgress * 0.18, 0, 1);
     } else if (sceneId === 'final_witness') {
       mood = 'last';
+      resolveState = 'witness';
+      intensity = clamp(0.72 + sceneProgress * 0.08, 0, 1);
+      hope = clamp(0.16 + sceneProgress * 0.38, 0, 0.64);
     }
-  } else {
+  } else if (isStoryGameplayMode) {
     const activeEpisode = state.storyEpisodeProgress.episodeIndex;
-    mood = Number.isInteger(activeEpisode) ? STORY_EPISODES[activeEpisode]?.mood : null;
+    if (Number.isInteger(activeEpisode)) {
+      mood = STORY_EPISODES[activeEpisode]?.mood ?? null;
+      const base = episodeBaseIntensity[Math.max(0, Math.min(episodeBaseIntensity.length - 1, activeEpisode))] ?? 0.18;
+      intensity = clamp(base + storyEpisodeIntensityProgress() * 0.14, 0, 1);
+    }
+  } else if (isStoryPostcreditMode) {
+    mood = 'last';
+    resolveState = 'postcredit';
+    intensity = 0.52;
+    hope = 0.72;
   }
-  frame.classList.toggle('story-cinematic', state.mode === 'story_cutscene');
+
+  frame.style.setProperty('--story-crescendo', intensity.toFixed(3));
+  frame.style.setProperty('--story-hope', hope.toFixed(3));
+  frame.classList.toggle('story-cinematic', isStoryCinematicMode);
+  frame.classList.toggle('story-cinematic-cutscene', isStoryCutsceneMode);
+  frame.classList.toggle('story-cinematic-gameplay', isStoryGameplayMode);
+  frame.classList.toggle('story-cinematic-postcredit', isStoryPostcreditMode);
   frame.classList.remove('story-mood-wake', 'story-mood-ghost', 'story-mood-shatter', 'story-mood-collapse', 'story-mood-last');
-  if (state.mode === 'story_cutscene' && mood) {
+  if (isStoryCinematicMode && mood) {
     frame.classList.add(`story-mood-${mood}`);
   }
+  frame.classList.toggle('story-resolve-witness', resolveState === 'witness');
+  frame.classList.toggle('story-resolve-postcredit', resolveState === 'postcredit');
 }
 
 function setMode(mode) {
@@ -1060,6 +1199,7 @@ function setMode(mode) {
   if (mode === 'start') {
     syncStoryStartButtons();
   }
+  syncStoryDebugControls();
   renderUpgrades();
   renderPerkTree();
 }
@@ -1125,6 +1265,22 @@ function activeStoryEpisodeConfig() {
   return STORY_EPISODES[state.storyEpisodeProgress.episodeIndex] ?? null;
 }
 
+function activeStoryEventProfile() {
+  const eventId = state.storyEpisodeProgress.targetEvent;
+  if (!eventId) {
+    return null;
+  }
+  return STORY_EVENT_PROFILES[eventId] ?? null;
+}
+
+function storyEpisodeIntensityProgress() {
+  const hold = state.storyEpisodeProgress.holdSeconds;
+  if (!hold || hold <= 0) {
+    return 0;
+  }
+  return clamp(state.storyEpisodeProgress.heldSeconds / hold, 0, 1);
+}
+
 function resetStoryCampaignProgress() {
   state.story = defaultStoryProgress();
   persistStoryProgress();
@@ -1171,6 +1327,7 @@ function renderStoryLine(line, visibleChars = line.length) {
   const sliced = safeLine.slice(0, Math.max(0, Math.min(safeLine.length, visibleChars)));
   storyLineTextEl.textContent = sliced;
   storyLineTextEl.classList.toggle('is-unknown', isUnknownSignalLine(safeLine));
+  syncStoryCinematicFrame();
 }
 
 function setStorySceneCursor(sceneId, lineIndex) {
@@ -1297,7 +1454,7 @@ function playStoryScene(sceneId, onCompleteAction, options = {}) {
   }
   beginStorySession();
   unlockStoryScene(sceneId);
-  const canSkip = options.canSkip ?? hasSeenStoryScene(sceneId);
+  const canSkip = options.canSkip ?? (hasSeenStoryScene(sceneId) || state.storyDebugEnabled);
   const initialLine = Number.isInteger(options.startLineIndex) ? options.startLineIndex : 0;
   state.storyCutsceneRuntime = {
     sceneId,
@@ -1331,14 +1488,22 @@ function beginStoryEpisodeGameplay(episodeIndex) {
   resetGame();
   state.storyEpisodeProgress = {
     episodeIndex,
-    targetPhase: episode.targetPhase,
+    targetEvent: episode.eventId,
+    spawnProfile: episode.spawnProfile,
     holdSeconds: episode.holdSeconds,
     heldSeconds: 0,
     lastAnnouncedRemaining: null
   };
+  setEventPhase(episode.eventId);
+  state.eventPhaseTimer = 0;
+  state.eventLabel = episode.eventId;
+  state.hasEnteredCollapse = episode.eventId === 'Collapse' || episode.eventId === 'Final Relay';
   state.nextGameplayMode = 'story_playing';
   setMode('story_playing');
-  showFeedback(`Story Objective: hold ${episode.targetPhase} for ${episode.holdSeconds}s`, 1500);
+  showFeedback(`Story Objective: hold ${episode.eventId} for ${episode.holdSeconds}s`, 1500);
+  if (state.storyDebugEnabled) {
+    showFeedback('Debug: press N to jump to next episode', 1300);
+  }
   requestAnimationFrame(loop);
 }
 
@@ -1373,10 +1538,10 @@ function updateStoryEpisodeProgress(dt) {
     return;
   }
   const goal = state.storyEpisodeProgress;
-  if (!goal.targetPhase || goal.holdSeconds <= 0) {
+  if (!goal.targetEvent || goal.holdSeconds <= 0) {
     return;
   }
-  if (state.eventPhase === goal.targetPhase) {
+  if (state.eventPhase === goal.targetEvent) {
     goal.heldSeconds = Math.min(goal.holdSeconds, goal.heldSeconds + dt);
     const remaining = Math.ceil(Math.max(0, goal.holdSeconds - goal.heldSeconds));
     if (remaining > 0 && goal.lastAnnouncedRemaining !== remaining) {
@@ -1389,11 +1554,6 @@ function updateStoryEpisodeProgress(dt) {
   } else {
     goal.lastAnnouncedRemaining = null;
   }
-}
-
-function storySpawnBias() {
-  const episode = activeStoryEpisodeConfig();
-  return episode ? episode.spawnBias : 'default';
 }
 
 function openLogsOverlay() {
@@ -2807,11 +2967,7 @@ function setEventPhase(phase) {
 }
 
 function pickNextEventPhase() {
-  const bias = storySpawnBias();
   if (state.eventPhase === 'Collapse') {
-    if (bias === 'collapse_recurrence' || bias === 'final_mix') {
-      return Math.random() < 0.52 ? 'Collapse' : 'Overdrive';
-    }
     return 'Overdrive';
   }
 
@@ -2820,24 +2976,6 @@ function pickNextEventPhase() {
   }
 
   const roll = Math.random();
-  if (bias === 'collapse_recurrence') {
-    if (roll < 0.64) {
-      return 'Collapse';
-    }
-    if (roll < 0.86) {
-      return 'Overdrive';
-    }
-    return 'Cruise';
-  }
-  if (bias === 'final_mix') {
-    if (roll < 0.58) {
-      return 'Collapse';
-    }
-    if (roll < 0.82) {
-      return 'Overdrive';
-    }
-    return 'Cruise';
-  }
   if (roll < 0.45) {
     return 'Collapse';
   }
@@ -2848,6 +2986,19 @@ function pickNextEventPhase() {
 }
 
 function updateEventPhase(dt) {
+  if (state.mode === 'story_playing' || state.mode === 'story_paused') {
+    const profile = activeStoryEventProfile();
+    if (profile) {
+      const lockedEvent = state.storyEpisodeProgress.targetEvent;
+      if (state.eventPhase !== lockedEvent) {
+        setEventPhase(lockedEvent);
+      }
+      state.eventPhaseTimer = 0;
+      state.eventLabel = profile.eventLabel;
+      return;
+    }
+  }
+
   const difficulty = state.difficultyScore;
 
   if (!state.hasEnteredCollapse) {
@@ -2903,6 +3054,18 @@ function pickBaseObstacleProfile() {
 }
 
 function canSpawnPhantom() {
+  const storyProfile = state.storyEpisodeProgress.spawnProfile;
+  if (state.mode === 'story_playing' || state.mode === 'story_paused') {
+    if (storyProfile === 'warmup') {
+      return false;
+    }
+    if (storyProfile === 'phantom_focus' || storyProfile === 'collapse_recurrence' || storyProfile === 'final_relay') {
+      return true;
+    }
+    if (storyProfile === 'splitter_focus') {
+      return countRecentSpawnType(PHANTOM_OBSTACLE_PROFILE.type, ENEMY_VARIETY_TUNING.recentTypeWindow + 2) < 1;
+    }
+  }
   if (state.eventPhase === 'Warmup') {
     return false;
   }
@@ -2914,6 +3077,18 @@ function canSpawnPhantom() {
 }
 
 function canSpawnSplitter() {
+  const storyProfile = state.storyEpisodeProgress.spawnProfile;
+  if (state.mode === 'story_playing' || state.mode === 'story_paused') {
+    if (storyProfile === 'warmup' || storyProfile === 'phantom_focus') {
+      return false;
+    }
+    if (storyProfile === 'splitter_focus' || storyProfile === 'collapse_recurrence' || storyProfile === 'final_relay') {
+      if (state.surgeTimer > 0) {
+        return false;
+      }
+      return true;
+    }
+  }
   if (state.eventPhase !== 'Overdrive' && state.eventPhase !== 'Collapse') {
     return false;
   }
@@ -2928,7 +3103,8 @@ function canSpawnSplitter() {
 }
 
 function pickSpecialObstacleProfile() {
-  const bias = storySpawnBias();
+  const storyProfile = state.storyEpisodeProgress.spawnProfile;
+  const isStoryEventRun = state.mode === 'story_playing' || state.mode === 'story_paused';
   if (canSpawnSplitter()) {
     const splitterProgress = progressBetween(state.difficultyScore, ENEMY_VARIETY_TUNING.splitterUnlockDifficulty, 95);
     const splitterPhaseBonus = state.eventPhase === 'Collapse' ? 0.06 : 0.03;
@@ -2937,12 +3113,16 @@ function pickSpecialObstacleProfile() {
       0.05,
       ENEMY_VARIETY_TUNING.splitterMaxWeight
     );
-    if (bias === 'splitter_focus') {
+    if (isStoryEventRun && storyProfile === 'splitter_focus') {
+      splitterWeight = 0.44;
+    } else if (isStoryEventRun && storyProfile === 'collapse_recurrence') {
+      splitterWeight = 0.32;
+    } else if (isStoryEventRun && storyProfile === 'final_relay') {
+      splitterWeight = 0.41;
+    } else if (storyProfile === 'splitter_focus') {
       splitterWeight = clamp(splitterWeight * 2, 0.05, 0.42);
-    } else if (bias === 'phantom_focus') {
+    } else if (storyProfile === 'phantom_focus') {
       splitterWeight = clamp(splitterWeight * 0.72, 0.03, 0.24);
-    } else if (bias === 'final_mix') {
-      splitterWeight = clamp(splitterWeight * 1.55, 0.08, 0.46);
     }
     if (Math.random() < splitterWeight) {
       return SPLITTER_OBSTACLE_PROFILE;
@@ -2957,12 +3137,18 @@ function pickSpecialObstacleProfile() {
       0.06,
       ENEMY_VARIETY_TUNING.phantomMaxWeight
     );
-    if (bias === 'phantom_focus') {
+    if (isStoryEventRun && storyProfile === 'phantom_focus') {
+      phantomWeight = 0.44;
+    } else if (isStoryEventRun && storyProfile === 'splitter_focus') {
+      phantomWeight = 0.1;
+    } else if (isStoryEventRun && storyProfile === 'collapse_recurrence') {
+      phantomWeight = 0.26;
+    } else if (isStoryEventRun && storyProfile === 'final_relay') {
+      phantomWeight = 0.39;
+    } else if (storyProfile === 'phantom_focus') {
       phantomWeight = clamp(phantomWeight * 2.15, 0.08, 0.45);
-    } else if (bias === 'splitter_focus') {
+    } else if (storyProfile === 'splitter_focus') {
       phantomWeight = clamp(phantomWeight * 0.7, 0.04, 0.22);
-    } else if (bias === 'final_mix') {
-      phantomWeight = clamp(phantomWeight * 1.45, 0.08, 0.4);
     }
     if (Math.random() < phantomWeight) {
       return PHANTOM_OBSTACLE_PROFILE;
@@ -2986,9 +3172,20 @@ function pickLane() {
     return state.lastSpawnLane;
   }
 
+  const storyEventProfile = activeStoryEventProfile();
   const baseSameLaneChance = state.difficultyScore < 20 ? 0.56 : state.difficultyScore < 40 ? 0.48 : 0.44;
-  const phaseLanePressure = state.eventPhase === 'Collapse' ? 0.2 : state.eventPhase === 'Overdrive' ? 0.08 : 0;
-  const maxSameLaneChance = state.eventPhase === 'Collapse' ? 0.68 : 0.58;
+  const phaseLanePressure = storyEventProfile
+    ? storyEventProfile.lanePressure
+    : state.eventPhase === 'Collapse'
+      ? 0.2
+      : state.eventPhase === 'Overdrive'
+        ? 0.08
+        : 0;
+  const maxSameLaneChance = storyEventProfile
+    ? clamp(0.58 + storyEventProfile.lanePressure, 0.58, 0.72)
+    : state.eventPhase === 'Collapse'
+      ? 0.68
+      : 0.58;
   const sameLaneChance = clamp(baseSameLaneChance + phaseLanePressure, 0.35, maxSameLaneChance);
   const lane = Math.random() < sameLaneChance ? state.lastSpawnLane : (state.lastSpawnLane === 0 ? 1 : 0);
   state.lastSpawnLane = lane;
@@ -2996,7 +3193,16 @@ function pickLane() {
 }
 
 function currentIntensityState() {
-  const bias = storySpawnBias();
+  const storyProfile = activeStoryEventProfile();
+  if (storyProfile) {
+    const storyProgress = storyEpisodeIntensityProgress();
+    return {
+      label: storyProfile.eventLabel,
+      speed: lerp(storyProfile.speedRange[0], storyProfile.speedRange[1], storyProgress),
+      spawnDelay: lerp(storyProfile.spawnDelayRange[0], storyProfile.spawnDelayRange[1], storyProgress)
+    };
+  }
+
   const difficulty = state.difficultyScore;
 
   if (state.hasEnteredCollapse) {
@@ -3018,8 +3224,8 @@ function currentIntensityState() {
 
     return {
       label: 'Collapse',
-      speed: bias === 'final_mix' ? clamp(MAX_SPEED + 14, MIN_SPEED, MAX_SPEED) : MAX_SPEED,
-      spawnDelay: bias === 'final_mix' ? Math.max(MIN_SPAWN_DELAY, MIN_SPAWN_DELAY - 0.02) : MIN_SPAWN_DELAY
+      speed: MAX_SPEED,
+      spawnDelay: MIN_SPAWN_DELAY
     };
   }
 
@@ -3052,8 +3258,8 @@ function currentIntensityState() {
 
   return {
     label: 'Collapse',
-    speed: bias === 'final_mix' ? clamp(MAX_SPEED + 14, MIN_SPEED, MAX_SPEED) : MAX_SPEED,
-    spawnDelay: bias === 'final_mix' ? Math.max(MIN_SPAWN_DELAY, MIN_SPAWN_DELAY - 0.02) : MIN_SPAWN_DELAY
+    speed: MAX_SPEED,
+    spawnDelay: MIN_SPAWN_DELAY
   };
 }
 
@@ -3146,6 +3352,9 @@ function loop(timestamp) {
     if (state.mode !== 'story_playing') {
       return;
     }
+  }
+  if (state.storySessionActive) {
+    syncStoryCinematicFrame();
   }
   const intensity = currentIntensityState();
   state.eventLabel = intensity.label;
@@ -3316,7 +3525,9 @@ function handleAction(event) {
 async function retryStoryEpisodeFromGameOver() {
   await submitScore();
   const currentEpisodeScene = storySceneForEpisode(state.story.currentEpisodeIndex);
-  playStoryScene(currentEpisodeScene, 'start_episode', { canSkip: hasSeenStoryScene(currentEpisodeScene) });
+  playStoryScene(currentEpisodeScene, 'start_episode', {
+    canSkip: hasSeenStoryScene(currentEpisodeScene) || state.storyDebugEnabled
+  });
 }
 
 function handleStoryOverlayAdvance() {
@@ -3346,6 +3557,18 @@ restartButton.addEventListener('click', async () => {
 });
 document.addEventListener('keydown', handleAction);
 document.addEventListener('keydown', async (event) => {
+  if (event.code === 'KeyN' && state.storyDebugEnabled) {
+    if (state.mode === 'story_playing') {
+      event.preventDefault();
+      debugCompleteCurrentStoryEpisode();
+      return;
+    }
+    if (state.mode === 'story_cutscene') {
+      event.preventDefault();
+      skipStoryScene();
+      return;
+    }
+  }
   if ((event.code === 'Space' || event.code === 'Enter') && handleStoryOverlayAdvance()) {
     event.preventDefault();
     return;
@@ -3382,6 +3605,9 @@ frame.addEventListener('pointerdown', (event) => {
   if (event.target.closest('#pause-button')) {
     return;
   }
+  if (event.target.closest('#story-debug-next-button')) {
+    return;
+  }
   if (event.target.closest('.overlay')) {
     return;
   }
@@ -3397,6 +3623,9 @@ frame.addEventListener('touchend', (event) => {
   if (event.target.closest('#pause-button')) {
     return;
   }
+  if (event.target.closest('#story-debug-next-button')) {
+    return;
+  }
   if (event.target.closest('.overlay')) {
     return;
   }
@@ -3407,6 +3636,9 @@ frame.addEventListener('dblclick', (event) => {
     return;
   }
   if (event.target.closest('#pause-button')) {
+    return;
+  }
+  if (event.target.closest('#story-debug-next-button')) {
     return;
   }
   if (event.target.closest('.overlay')) {
@@ -3445,6 +3677,9 @@ storyStartButton?.addEventListener('click', () => {
 storyContinueButton?.addEventListener('click', () => {
   startStoryMode({ continueCampaign: true });
 });
+storyDebugToggleButton?.addEventListener('click', () => {
+  toggleStoryDebugMode();
+});
 logsButton?.addEventListener('click', () => {
   openLogsOverlay();
 });
@@ -3474,6 +3709,9 @@ postcreditCloseButton?.addEventListener('click', () => {
 });
 postcreditSkipButton?.addEventListener('click', () => {
   finishStoryPostcredit();
+});
+storyDebugNextButton?.addEventListener('click', () => {
+  debugCompleteCurrentStoryEpisode();
 });
 buyFlowButton.addEventListener('click', () => purchaseUpgrade('flow'));
 buyShieldButton.addEventListener('click', () => purchaseUpgrade('shield'));

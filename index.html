@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f7f4ed">
   <title>Drift</title>
-  <link rel="stylesheet" href="style.css?v=20260414.1">
+  <link rel="stylesheet" href="style.css?v=20260414.3">
 </head>
 <body>
   <main class="shell">
@@ -61,6 +61,7 @@
           <div id="player" class="player" aria-hidden="true"></div>
           <div id="obstacles" class="obstacles" aria-hidden="true"></div>
           <button id="pause-button" class="pause-toggle" type="button" aria-label="Pause game" hidden>II</button>
+          <button id="story-debug-next-button" class="story-debug-next" type="button" aria-label="Debug: complete current story episode" hidden>Next Episode</button>
 
           <div id="overlay-start" class="overlay is-visible">
             <h1>Drift</h1>
@@ -70,6 +71,7 @@
               <button id="story-start-button" class="button button-secondary" type="button">Start Story</button>
               <button id="story-continue-button" class="button button-secondary" type="button" hidden>Continue Story</button>
               <button id="logs-button" class="button button-secondary" type="button">Logs</button>
+              <button id="story-debug-toggle-button" class="button button-secondary" type="button">Story Debug: Off</button>
             </div>
             <div id="countdown" class="countdown" aria-live="polite"></div>
             <div class="hint">Press Space on desktop, or tap the playfield on touch devices.</div>
@@ -190,6 +192,6 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js?v=20260414.1"></script>
+  <script src="script.js?v=20260414.3"></script>
 </body>
 </html>
