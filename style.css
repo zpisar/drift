@@ -25,6 +25,23 @@ body {
   padding: 24px;
 }
 
+body.is-story-mode .scoreboard {
+  display: none;
+}
+
+body.is-story-mode .layout {
+  max-width: 1140px;
+  grid-template-columns: minmax(680px, 1fr) minmax(220px, 280px);
+  grid-template-areas:
+    "game upgrades"
+    "tree tree";
+}
+
+body.is-story-cutscene .upgrades {
+  opacity: 0.44;
+  pointer-events: none;
+}
+
 button {
   font: inherit;
 }
@@ -792,6 +809,18 @@ button {
   margin-bottom: 4px;
 }
 
+.start-actions {
+  margin-top: 16px;
+  width: min(100%, 20rem);
+  display: grid;
+  gap: 8px;
+}
+
+.start-actions .button {
+  margin-top: 0;
+  width: 100%;
+}
+
 .button {
   margin-top: 22px;
   border: 1px solid var(--ink);
@@ -845,6 +874,190 @@ button {
   justify-items: center;
   padding-top: 16px;
   padding-bottom: 24px;
+}
+
+#overlay-over.is-story-gameover .name-field,
+#overlay-over.is-story-gameover #save-score-button {
+  display: none;
+}
+
+#overlay-over.is-story-gameover .panel-stack {
+  margin-top: 0;
+}
+
+#overlay-story,
+#overlay-postcredit,
+#overlay-logs {
+  justify-content: flex-start;
+  align-items: stretch;
+  text-align: left;
+}
+
+.story-scene-label {
+  font-size: 0.74rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.story-line-card {
+  margin-top: 10px;
+  border: 1px solid rgba(21, 21, 21, 0.2);
+  border-radius: 16px;
+  min-height: 140px;
+  padding: 14px 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.12)),
+    radial-gradient(circle at 14% 8%, rgba(134, 197, 255, 0.18), transparent 68%);
+  box-shadow: inset 0 0 40px rgba(8, 20, 31, 0.08);
+}
+
+.story-line-text {
+  margin: 0;
+  max-width: none;
+  font-size: clamp(0.94rem, 1.9vw, 1.08rem);
+  line-height: 1.6;
+  opacity: 0.95;
+  white-space: pre-wrap;
+  min-height: 5.8em;
+}
+
+.story-line-text.is-unknown {
+  font-style: italic;
+}
+
+.story-controls {
+  margin-top: 8px;
+  width: min(100%, 20rem);
+  display: grid;
+  gap: 8px;
+}
+
+.story-controls .button {
+  margin-top: 0;
+  width: 100%;
+}
+
+.logs-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+  width: min(100%, 26rem);
+}
+
+.log-item {
+  border: 1px solid rgba(21, 21, 21, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.42);
+  color: var(--ink);
+  text-align: left;
+  padding: 0.68rem 0.82rem;
+  cursor: pointer;
+}
+
+.log-item:hover {
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.log-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.postcredit-scroll-wrap {
+  margin-top: 10px;
+  border: 1px solid rgba(21, 21, 21, 0.2);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.3);
+  min-height: 52vh;
+  max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.postcredit-scroll-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.postcredit-scroll {
+  padding: 20px 16px 84px;
+  white-space: pre-wrap;
+  line-height: 1.56;
+  font-size: 0.96rem;
+}
+
+.postcredit-line {
+  margin: 0 0 10px;
+}
+
+.postcredit-line.is-unknown {
+  font-style: italic;
+}
+
+.game-frame.story-cinematic::before,
+.game-frame.story-cinematic::after {
+  opacity: 1;
+}
+
+.game-frame.story-cinematic::before {
+  animation: story-static 580ms linear infinite;
+  mix-blend-mode: screen;
+  background:
+    linear-gradient(122deg, rgba(255, 255, 255, 0.02), rgba(121, 172, 231, 0.34), rgba(255, 255, 255, 0.08)),
+    repeating-linear-gradient(92deg, rgba(255, 255, 255, 0.03) 0 2px, rgba(16, 28, 45, 0) 3px 9px);
+  background-size: 170% 100%, 120% 100%;
+}
+
+.game-frame.story-cinematic::after {
+  background: linear-gradient(145deg, rgba(3, 8, 18, 0.18), rgba(3, 8, 18, 0.62));
+}
+
+.game-frame.story-mood-wake {
+  filter: contrast(1.1) saturate(0.85) brightness(0.92);
+}
+
+.game-frame.story-mood-ghost {
+  filter: contrast(1.16) saturate(0.8) brightness(0.84);
+}
+
+.game-frame.story-mood-shatter {
+  filter: contrast(1.24) saturate(0.78) brightness(0.8);
+}
+
+.game-frame.story-mood-collapse {
+  filter: contrast(1.28) saturate(0.72) brightness(0.76);
+  animation: story-shake 980ms ease-in-out infinite;
+}
+
+.game-frame.story-mood-last {
+  filter: contrast(1.34) saturate(0.76) brightness(0.7);
+  animation: story-shake 650ms ease-in-out infinite;
+}
+
+@keyframes story-static {
+  0% {
+    background-position: 0 0, 0 0;
+  }
+  100% {
+    background-position: -200% 0, -160% 0;
+  }
+}
+
+@keyframes story-shake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  20% {
+    transform: translate3d(-0.4px, 0.8px, 0);
+  }
+  45% {
+    transform: translate3d(0.6px, -0.5px, 0);
+  }
+  72% {
+    transform: translate3d(-0.3px, -0.8px, 0);
+  }
 }
 
 .panel-stack {
@@ -1150,6 +1363,14 @@ button {
 
 
 @media (max-width: 1240px) {
+  body.is-story-mode .layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "game"
+      "upgrades"
+      "tree";
+  }
+
   .layout {
     grid-template-columns: 1fr;
     max-width: 920px;
@@ -1340,6 +1561,15 @@ button {
     justify-content: flex-start;
     align-items: stretch;
     overflow: hidden;
+  }
+
+  .story-line-card {
+    min-height: 180px;
+  }
+
+  .postcredit-scroll-wrap {
+    min-height: 46svh;
+    max-height: 54svh;
   }
 
   #overlay-over {

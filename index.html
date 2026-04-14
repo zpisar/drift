@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f7f4ed">
   <title>Drift</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260414.1">
 </head>
 <body>
   <main class="shell">
@@ -65,14 +65,19 @@
           <div id="overlay-start" class="overlay is-visible">
             <h1>Drift</h1>
             <p>One button. Two lanes. Survive as long as you can.</p>
-            <button id="start-button" class="button" type="button">Start</button>
+            <div class="start-actions">
+              <button id="start-button" class="button" type="button">Start Run</button>
+              <button id="story-start-button" class="button button-secondary" type="button">Start Story</button>
+              <button id="story-continue-button" class="button button-secondary" type="button" hidden>Continue Story</button>
+              <button id="logs-button" class="button button-secondary" type="button">Logs</button>
+            </div>
             <div id="countdown" class="countdown" aria-live="polite"></div>
             <div class="hint">Press Space on desktop, or tap the playfield on touch devices.</div>
           </div>
 
           <div id="overlay-over" class="overlay">
-            <h2>Game Over</h2>
-            <p>Your run ended at <span id="final-score">0.0</span></p>
+            <h2 id="overlay-over-title">Game Over</h2>
+            <p id="overlay-over-subtitle">Your run ended at <span id="final-score">0.0</span></p>
             <section class="panel-stack" aria-label="Progression summary placeholders">
               <article class="panel-card is-scrap" aria-label="Scrap earned">
                 <h3>Scrap Earned</h3>
@@ -91,6 +96,41 @@
             <div class="overlay-actions">
               <button id="save-score-button" class="button" type="button">Save Score</button>
               <button id="restart-button" class="button button-secondary" type="button">Restart</button>
+            </div>
+          </div>
+
+          <div id="overlay-story" class="overlay">
+            <div id="story-scene-label" class="story-scene-label">Story Cutscene</div>
+            <h2 id="story-scene-title">Episode</h2>
+            <div class="story-line-card">
+              <p id="story-line-text" class="story-line-text"></p>
+            </div>
+            <div class="story-controls">
+              <button id="story-advance-button" class="button" type="button">Advance</button>
+              <button id="story-skip-button" class="button button-secondary" type="button" hidden>Skip</button>
+            </div>
+            <div class="hint">Tap or press Space to reveal/advance lines.</div>
+          </div>
+
+          <div id="overlay-postcredit" class="overlay">
+            <div class="story-scene-label">Post-credit</div>
+            <h2>Final Transmission</h2>
+            <div id="postcredit-scroll-wrap" class="postcredit-scroll-wrap">
+              <div id="postcredit-scroll" class="postcredit-scroll"></div>
+            </div>
+            <div class="story-controls">
+              <button id="postcredit-close-button" class="button" type="button">Return</button>
+              <button id="postcredit-skip-button" class="button button-secondary" type="button" hidden>Skip</button>
+            </div>
+            <div class="hint">Replay available from Logs.</div>
+          </div>
+
+          <div id="overlay-logs" class="overlay">
+            <h2>Logs</h2>
+            <p>Replay unlocked episodes and transmissions.</p>
+            <div id="logs-list" class="logs-list"></div>
+            <div class="overlay-actions">
+              <button id="logs-close-button" class="button button-secondary" type="button">Close</button>
             </div>
           </div>
         </section>
@@ -150,6 +190,6 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js"></script>
+  <script src="script.js?v=20260414.1"></script>
 </body>
 </html>

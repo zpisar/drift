@@ -6,11 +6,29 @@ const obstaclesEl = document.getElementById('obstacles');
 const overlayStart = document.getElementById('overlay-start');
 const overlayOver = document.getElementById('overlay-over');
 const startButton = document.getElementById('start-button');
+const storyStartButton = document.getElementById('story-start-button');
+const storyContinueButton = document.getElementById('story-continue-button');
+const logsButton = document.getElementById('logs-button');
 const saveScoreButton = document.getElementById('save-score-button');
 const restartButton = document.getElementById('restart-button');
 const countdownEl = document.getElementById('countdown');
 const pauseButton = document.getElementById('pause-button');
 const playerNameEl = document.getElementById('player-name');
+const overlayOverTitleEl = document.getElementById('overlay-over-title');
+const overlayStory = document.getElementById('overlay-story');
+const storySceneLabelEl = document.getElementById('story-scene-label');
+const storySceneTitleEl = document.getElementById('story-scene-title');
+const storyLineTextEl = document.getElementById('story-line-text');
+const storyAdvanceButton = document.getElementById('story-advance-button');
+const storySkipButton = document.getElementById('story-skip-button');
+const overlayPostcredit = document.getElementById('overlay-postcredit');
+const postcreditScrollWrapEl = document.getElementById('postcredit-scroll-wrap');
+const postcreditScrollEl = document.getElementById('postcredit-scroll');
+const postcreditCloseButton = document.getElementById('postcredit-close-button');
+const postcreditSkipButton = document.getElementById('postcredit-skip-button');
+const overlayLogs = document.getElementById('overlay-logs');
+const logsListEl = document.getElementById('logs-list');
+const logsCloseButton = document.getElementById('logs-close-button');
 const scoreboardStatusEl = document.getElementById('scoreboard-status');
 const scoreboardListEl = document.getElementById('scoreboard-list');
 const scoreboardToggleButton = document.getElementById('scoreboard-toggle');
@@ -54,6 +72,8 @@ const PROGRESS_SCHEMA_VERSION = 1;
 const UPGRADE_KEY = 'drift-upgrades-v02';
 const PERK_TREE_KEY = 'drift-perk-tree-v01';
 const LATEST_SCORE_KEY = 'drift-latest-score-v01';
+const STORY_PROGRESS_KEY = 'drift-story-v11';
+const STORY_PROGRESS_SCHEMA_VERSION = 1;
 const LEADERBOARD_LIMIT = 10;
 const UPGRADE_POINT_STEP = 20;
 const UPGRADE_SCRAP_PER_STEP = 1;
@@ -163,6 +183,229 @@ const PHASE_DURATIONS = Object.freeze({
   Overdrive: [12, 18],
   Collapse: [8, 12]
 });
+
+function parseSceneLines(block) {
+  return block
+    .split('\n')
+    .map((line) => line.replace('\r', ''))
+    .filter((line, index, allLines) => {
+      if (index === 0 && line.trim() === '') {
+        return false;
+      }
+      if (index === allLines.length - 1 && line.trim() === '') {
+        return false;
+      }
+      return true;
+    });
+}
+
+const STORY_EPISODES = Object.freeze([
+  { sceneId: 'episode_1', title: 'Wake Signal', targetPhase: 'Warmup', holdSeconds: 12, mood: 'wake', spawnBias: 'wake' },
+  { sceneId: 'episode_2', title: 'Ghost Lanes', targetPhase: 'Cruise', holdSeconds: 16, mood: 'ghost', spawnBias: 'phantom_focus' },
+  { sceneId: 'episode_3', title: 'Shatter Corridor', targetPhase: 'Overdrive', holdSeconds: 20, mood: 'shatter', spawnBias: 'splitter_focus' },
+  { sceneId: 'episode_4', title: 'Collapse Chain', targetPhase: 'Collapse', holdSeconds: 24, mood: 'collapse', spawnBias: 'collapse_recurrence' },
+  { sceneId: 'episode_5', title: 'Last Drift', targetPhase: 'Collapse', holdSeconds: 30, mood: 'last', spawnBias: 'final_mix' }
+]);
+
+const STORY_SCENE_ORDER = Object.freeze([
+  ...STORY_EPISODES.map((episode) => episode.sceneId),
+  'final_witness',
+  'final_transmission'
+]);
+
+const STORY_CUTSCENE_TEMPO = Object.freeze({
+  episode_1: { charMs: 23, holdMs: 1350 },
+  episode_2: { charMs: 21, holdMs: 1250 },
+  episode_3: { charMs: 18, holdMs: 1140 },
+  episode_4: { charMs: 15, holdMs: 1040 },
+  episode_5: { charMs: 13, holdMs: 980 },
+  final_witness: { charMs: 12, holdMs: 920 },
+  final_transmission: { charMs: 11, holdMs: 860 }
+});
+
+const STORY_SCENES = Object.freeze({
+  episode_1: {
+    id: 'episode_1',
+    label: 'Episode 1',
+    title: 'Wake Signal',
+    lines: parseSceneLines(`
+[PILOT_LOG] Earth did not explode; it simply stopped answering.
+[PILOT_LOG] I fly old freight lanes because routine is warmer than fear.
+[SYSTEM_DIAG] Reactor stable. Cabin temperature low. Receiver still open.
+[PILOT_LOG] The receiver still scrapes archive pings off the relays along the way: vote records, route doctrine, the kind of machine memory that outlives the people who wrote it.
+[PILOT_LOG] The Spine was the bridge to it all: traffic, maps, votes, distress calls, all of it riding one long artificial nerve out from Earth.
+[ARCHIVE_PING] Civil grid silent. Emergency bands rerouted to deep relay.
+[ARCHIVE_PING] Legacy failsafe strata detected. Access denied. Outbound authority reserved.
+[PILOT_LOG] The lane hum is thin tonight, but it is still a hum.
+[UNKNOWN_SIGNAL] Drifter unit detected. Continue inward.
+[PILOT_LOG] Nobody says \u201Ccontinue inward\u201D unless they want something.
+[PILOT_LOG] If I survive one more corridor, I earn one more thought of home.
+[LOGBOOK_FRAGMENT] ..used to know rain by smell. Now only ozone and hot metal.
+[LOGBOOK_FRAGMENT] ..cozy is a dashboard light that never blinks.
+`)
+  },
+  episode_2: {
+    id: 'episode_2',
+    label: 'Episode 2',
+    title: 'Ghost Lanes',
+    lines: parseSceneLines(`
+[SYSTEM_DIAG] Phantom trajectories confirmed! Confidence probability degraded.
+[PILOT_LOG] Obstacles move like they heard my decision before I make it.
+[ARCHIVE_PING] Drifter Protocol 12-B: Telemetry over instinct under stress.
+[PILOT_LOG] Out here, instinct is just telemetry with a heartbeat.
+[UNKNOWN_SIGNAL] Left lane. Right lane. Either way, same grave.
+[PILOT_LOG] It is using my cadence. It sounds almost patient. System analysis if you will.
+[SYSTEM_DIAG] Input latency. Pilot stress markers elevated.
+[SYSTEM_DIAG] Unknown signal behavior consistent with degraded crew-support routines operating beyond intended conversational threshold.
+[SYSTEM_DIAG] Affective guidance layer active. Stress-response heuristics overfitting to pilot cognition.
+[PILOT_LOG] I used to fear death. Lately I fear being correctly predicted.
+[LOGBOOK_FRAGMENT] ..named the static \u201Cchoir\u201D so it would feel less empty.
+[LOGBOOK_FRAGMENT] ..ship creaks like someone settling into the seat behind me.
+`)
+  },
+  episode_3: {
+    id: 'episode_3',
+    label: 'Episode 3',
+    title: 'Shatter Corridor',
+    lines: parseSceneLines(`
+[SYSTEM_DIAG] Splitter-class contacts! Fragment spread exceeds safe envelope.
+[PILOT_LOG] One threat breaks into two; one memory breaks into many.
+[ARCHIVE_PING] Convoy MORROW lost at Corridor Nine. Escort unresolved.
+[PILOT_LOG] I was that escort. I logged \u201Csignal interference\u201D and kept flying.
+[UNKNOWN_SIGNAL] You left them in the dark and called it protocol.
+[PILOT_LOG] I left because command said one ship might carry the map.
+[ARCHIVE_PING] Continuity Directive: preserve route intelligence over rescue.
+[PILOT_LOG] How does the ship know what pings to bring up?
+[PILOT_LOG] We measured lives in percentages and called it strategy.
+[LOGBOOK_FRAGMENT] ..still remember one voice begging to turn around.
+[LOGBOOK_FRAGMENT] ..guilt is heavier in zero gravity.
+`)
+  },
+  episode_4: {
+    id: 'episode_4',
+    label: 'Episode 4',
+    title: 'Collapse Chain',
+    lines: parseSceneLines(`
+[SYSTEM_DIAG] Collapse cycling recurrent! Thermal margins narrowing.
+[PILOT_LOG] The ship shakes like a frightened animal trying to look brave.
+[PILOT_LOG] What do you say at that, huh?
+[ARCHIVE_PING] Continuity Council emergency measure authorized: Protocol ##### [dedacted].
+[ARCHIVE_PING] Relay coherence degradation spreading outward from Earth nexus.
+[ARCHIVE_PING] Signal corruption, navigational inversion, and thermal cascade across Spine layers.
+[ARCHIVE_PING] Earth node no longer considered recoverable under continuity assumptions.
+[PILOT_LOG] So Earth did not only fall.. it was.. it was cut loose.
+[ARCHIVE_PING] Public disclosure of cascade risk restricted under continuity stability directive.
+[PILOT_LOG] Meaning they knew the Spine could break and kept the warning behind a clean phrase.
+[ARCHIVE_PING] Protocol Dark Earth: sever Earth relay Spine to cauterize expanding collapse.
+[PILOT_LOG] They called it Protocol Dark Earth, like giving the end of a world a proper header made it easier to sign.
+[UNKNOWN_SIGNAL] *They chose silence to save whatever came after.*
+[PILOT_LOG] They spoke of containment, but what they meant was amputation. Earth had become a wound they were afraid would spread.
+[PILOT_LOG] I carried that silence outward and called it duty. It makes me sick.
+[ARCHIVE_PING] Deny return vector. Deny reattachment. Deny recursive loss.
+[ARCHIVE_PING] Remaining drifter units tasked: archive memory, avoid return vector.
+[PILOT_LOG] \u201CAvoid return.\u201D They wrote exile in clean technical language.
+[LOGBOOK_FRAGMENT] ..angry at ghosts because the living signed the order.
+[LOGBOOK_FRAGMENT] ..cozy thing now is honesty, even when it hurts.
+`)
+  },
+  episode_5: {
+    id: 'episode_5',
+    label: 'Episode 5',
+    title: 'Last Drift',
+    lines: parseSceneLines(`
+[SYSTEM_DIAG] Final relay aperture detected! Transmission window unstable!
+[PILOT_LOG] There is a slit of light ahead where no light should survive..
+[ARCHIVE_PING] Deep relay handshake requested. Archive strata responding.
+[SYSTEM_DIAG] Aperture too degraded for remote burst. Source vessel must bridge relay load through core, hull mesh, and thermal sinks. Probability of post-transmission structural survival: minimal.
+[PILOT_LOG] So the old Spine kept one secret door. Not for return. For release.
+[UNKNOWN_SIGNAL] Do not transmit. Forgetting is mercy.
+[PILOT_LOG] Mercy for whom: the dead, or those who abandoned them?
+[SYSTEM_DIAG] Hull stress rising. Reactor reserve insufficient for full burn and withdrawal.
+[PILOT_LOG] If I send this, the ship may not stay a ship for long.
+[UNKNOWN_SIGNAL] Turn away. Live smaller. Live longer.
+[PILOT_LOG] It knows my cadence because it has been living in it.
+[SYSTEM_DIAG] Archive crossfeed exceeded containment threshold. Crew-support routines now interfacing with recovered archive and memory strata.
+[SYSTEM_DIAG] No alien intelligence confirmed. Unknown signal is consistent with a local composite built from pilot voiceprint, delayed comm reflections, archive residue, and adaptive response modeling.
+[PILOT_LOG] Maybe there was never anything out here more haunted than a ship using my own voice to argue for my fear.
+[PILOT_LOG] Old freighters are built to keep one person company without admitting that\u2019s what they\u2019re doing.
+[SYSTEM_DIAG] Aperture widening. Uplink path unstable but viable.
+[ARCHIVE_PING] Hidden archive layers unlocking. Witness packet incomplete.
+[PILOT_LOG] Not incomplete. Waiting.
+[LOGBOOK_FRAGMENT] ..used to think survival was the same as innocence if you did it quietly enough.
+[LOGBOOK_FRAGMENT] ..I know better now.
+[UNKNOWN_SIGNAL] Last chance.
+[PILOT_LOG] It was never talking to me from outside. The ship was talking to me from whatever part of me I kept outsourcing.
+[PILOT_LOG] No.
+[PILOT_LOG] Open the channel.
+[ARCHIVE_PING] Uplink initiated. Deferred records rising.
+`)
+  },
+  final_witness: {
+    id: 'final_witness',
+    label: 'Final Cutscene',
+    title: 'Last Witness',
+    lines: parseSceneLines(`
+[SYSTEM_DIAG] Relay strain rising. Hull resonance terminal.
+[PILOT_LOG] The old Spine still has one mouth left. It hurts to watch it open.
+[ARCHIVE_PING] From the Continuity Council emergency session...
+[ARCHIVE_PING] Proposal carried: Protocol Dark Earth. Sever Earth relay Spine. Preserve outward continuity. Deny return vector.
+[ARCHIVE_PING] Earth designated expanding collapse source.
+[ARCHIVE_PING] Earth-node no longer considered recoverable under continuity assumptions.
+[PILOT_LOG] There it is. The clean language that buried a world.
+[PILOT_LOG] They called it Protocol Dark Earth, like naming the wound made it easier to cut.
+[ARCHIVE_PING] Convoy MORROW distress request unresolved. Escort directive upheld. Preserve route intelligence over local rescue.
+[PILOT_LOG] And there is my share of it. Signed by continuing forward.
+[UNKNOWN_SIGNAL] You obeyed because you wanted to live.
+[PILOT_LOG] Yes.
+[SYSTEM_DIAG] Unknown signal source correlation revised: 93% local composite artifact.
+[PILOT_LOG] Not a ghost... It's me! ..Stretched across broken relays, ship-noise, and buried record, trying to survive by shrinking the truth.
+[ARCHIVE_PING] Failsafe designation recovered: LAST WITNESS.
+[ARCHIVE_PING] Aperture function: outward archival ejection.
+[ARCHIVE_PING] LAST WITNESS failsafe predates Continuity authority. Suppression orders nonbinding.
+[PILOT_LOG] If the living chose silence, the record was built to refuse it.
+[UNKNOWN_SIGNAL] Transmission will likely destroy source vessel.
+[PILOT_LOG] Then the ship can join the evidence.
+[SYSTEM_DIAG] Nonessential systems shedding to sustain archive burn.
+[PILOT_LOG] I cannot return to Earth. I cannot return to MORROW. I can only stop helping silence pretend to be mercy.
+[ARCHIVE_PING] Earth archive packet expanded. Civil logs, command breach record, convoy testimony, pilot confession.
+[ARCHIVE_PING] Outbound packet ready.
+[ARCHIVE_PING] Transmission authority accepted.
+[SYSTEM_DIAG] Core temperature critical. Structural integrity failing.
+`)
+  },
+  final_transmission: {
+    id: 'final_transmission',
+    label: 'Final Transmission',
+    title: 'Earth Archive Packet',
+    lines: parseSceneLines(`
+[TRANSMIT] Begin witness record.
+[TRANSMIT] To any receiver: this is Drifter Unit-707.
+[TRANSMIT] Earth did not vanish in one instant. A cascade spread through the relay network until signal corruption, navigational inversion, and thermal collapse began feeding one another across the Spine.
+[TRANSMIT] The Continuity Council named their answer Protocol Dark Earth. They severed the Earth relay Spine to preserve what lay beyond it.
+[TRANSMIT] The silence that followed was not only disaster. It was policy.
+[TRANSMIT] They said rescue would threaten continuity. What they meant was that witness would threaten the people still in charge.
+[TRANSMIT] Convoy MORROW was sacrificed under the same logic. I know because I was there. I was the escort ordered to continue outward and preserve route intelligence instead of turning back toward voices that still believed I might help them.
+[TRANSMIT] I obeyed.
+[TRANSMIT] For a long time I called that duty. It was fear, dressed in official language.
+[TRANSMIT] Out here I heard a signal speaking in my own cadence. The system tells me it was a local composite made from my voice, damaged crew-support routines, and buried archive residue. That is accurate enough. What matters is this: memory refused to stay buried.
+[TRANSMIT] So record it clearly. Earth was here. Earth was loved. Earth was not only lost. Earth was cut loose.
+[TRANSMIT] MORROW called for help. MORROW was denied. Not by fate alone, but by doctrine, by design, by people who made percentages stand where courage should have stood.
+[TRANSMIT] I cannot return to them. I cannot repair the Spine. I cannot make myself innocent.
+[TRANSMIT] But I can refuse forgetting.
+[TRANSMIT] If you build from what remains of us, do not build on the soft lie. Do not say we passed cleanly.
+[TRANSMIT] Remember us accurately, not kindly.
+[TRANSMIT] And remember this, if nothing else: we were here. We were afraid. We loved imperfectly and still enough for it to matter.
+[TRANSMIT] This is witness record. This is the last drift. Send it farther than they meant it to go.
+[ARCHIVE_PING] Uplink committed.
+[ARCHIVE_PING] Packet propagation confirmed.
+[SYSTEM_DIAG] Source vessel integrity collapsing.
+[PILOT_LOG] Good. Let it hurt.
+[TRANSMIT] End witness record.
+ ..somewhere, impossibly far away, a relay light answers.
+`)
+  }
+});
+
 const DEFAULT_PROGRESS = Object.freeze({
   schemaVersion: PROGRESS_SCHEMA_VERSION,
   bestScore: 0
@@ -493,8 +736,116 @@ function persistUpgrades() {
   }
 }
 
+function defaultStoryProgress() {
+  return {
+    schemaVersion: STORY_PROGRESS_SCHEMA_VERSION,
+    currentEpisodeIndex: 0,
+    completedEpisodes: [],
+    unlockedSceneIds: ['episode_1'],
+    seenSceneIds: [],
+    campaignComplete: false,
+    currentSceneCursor: null
+  };
+}
+
+function sanitizeStorySceneId(value) {
+  return STORY_SCENE_ORDER.includes(value) ? value : null;
+}
+
+function sanitizeStoryProgress(raw) {
+  const fallback = defaultStoryProgress();
+  const source =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? raw
+      : {};
+
+  const completedEpisodes = Array.isArray(source.completedEpisodes)
+    ? source.completedEpisodes
+      .map((entry) => Math.floor(Number(entry)))
+      .filter((entry) => Number.isInteger(entry) && entry >= 0 && entry < STORY_EPISODES.length)
+    : [];
+
+  const unlockedSceneIds = Array.isArray(source.unlockedSceneIds)
+    ? source.unlockedSceneIds
+      .map((entry) => sanitizeStorySceneId(entry))
+      .filter(Boolean)
+    : [];
+
+  const seenSceneIds = Array.isArray(source.seenSceneIds)
+    ? source.seenSceneIds
+      .map((entry) => sanitizeStorySceneId(entry))
+      .filter(Boolean)
+    : [];
+
+  const nextEpisode = Math.max(0, Math.min(STORY_EPISODES.length - 1, Math.floor(Number(source.currentEpisodeIndex) || 0)));
+  const uniqueUnlocked = Array.from(new Set(['episode_1', ...unlockedSceneIds]));
+  const uniqueSeen = Array.from(new Set(seenSceneIds));
+
+  const cursorSource =
+    source.currentSceneCursor && typeof source.currentSceneCursor === 'object' && !Array.isArray(source.currentSceneCursor)
+      ? source.currentSceneCursor
+      : null;
+  const cursorSceneId = cursorSource ? sanitizeStorySceneId(cursorSource.sceneId) : null;
+  const cursorLineIndex = cursorSource ? Math.max(0, Math.floor(Number(cursorSource.lineIndex) || 0)) : 0;
+
+  return {
+    ...fallback,
+    schemaVersion: STORY_PROGRESS_SCHEMA_VERSION,
+    currentEpisodeIndex: nextEpisode,
+    completedEpisodes: Array.from(new Set(completedEpisodes)),
+    unlockedSceneIds: uniqueUnlocked,
+    seenSceneIds: uniqueSeen,
+    campaignComplete: Boolean(source.campaignComplete),
+    currentSceneCursor: cursorSceneId
+      ? {
+          sceneId: cursorSceneId,
+          lineIndex: cursorLineIndex
+        }
+      : null
+  };
+}
+
+function loadStoryProgress() {
+  try {
+    const raw = localStorage.getItem(STORY_PROGRESS_KEY);
+    if (!raw) {
+      return defaultStoryProgress();
+    }
+    return sanitizeStoryProgress(JSON.parse(raw));
+  } catch (error) {
+    return defaultStoryProgress();
+  }
+}
+
+function persistStoryProgress() {
+  try {
+    localStorage.setItem(STORY_PROGRESS_KEY, JSON.stringify(state.story));
+  } catch (error) {
+    // Ignore storage errors so gameplay can continue.
+  }
+}
+
+function hasSeenStoryScene(sceneId) {
+  return state.story.seenSceneIds.includes(sceneId);
+}
+
+function unlockStoryScene(sceneId) {
+  if (!state.story.unlockedSceneIds.includes(sceneId)) {
+    state.story.unlockedSceneIds.push(sceneId);
+    persistStoryProgress();
+  }
+}
+
+function markStorySceneSeen(sceneId) {
+  if (!state.story.seenSceneIds.includes(sceneId)) {
+    state.story.seenSceneIds.push(sceneId);
+    persistStoryProgress();
+  }
+}
+
 const initialProgress = loadProgress();
 const initialLatestScore = loadLatestScore();
+const initialStoryProgress = loadStoryProgress();
 
 const state = {
   mode: 'start',
@@ -561,7 +912,20 @@ const state = {
   },
   lastPerkOfferKey: null,
   nextEvadeGroupId: 1,
-  evadeGroupRemaining: {}
+  evadeGroupRemaining: {},
+  nextGameplayMode: 'playing',
+  story: initialStoryProgress,
+  storySessionActive: false,
+  storyCutsceneRuntime: null,
+  storyPostcreditTimer: null,
+  storyPostcreditFromLogs: false,
+  storyEpisodeProgress: {
+    episodeIndex: null,
+    targetPhase: null,
+    holdSeconds: 0,
+    heldSeconds: 0,
+    lastAnnouncedRemaining: null
+  }
 };
 
 if (hudPerkEl) {
@@ -578,6 +942,8 @@ syncFamilyAuraState();
 syncPauseButton();
 syncMobilePanels(true);
 bindPerkTreeInteractions();
+syncStorySessionVisualState();
+syncStoryStartButtons();
 
 function createSupabaseClient() {
   if (
@@ -600,13 +966,100 @@ function positionPlayer() {
   playerEl.style.top = `${laneTop(state.lane)}px`;
 }
 
+function isStoryModeGameplayMode(mode = state.mode) {
+  return mode === 'story_playing' || mode === 'story_paused';
+}
+
+function isGameplayMode(mode = state.mode) {
+  return mode === 'playing' || mode === 'paused' || isStoryModeGameplayMode(mode);
+}
+
+function hasStoryContinuation() {
+  if (state.story.campaignComplete) {
+    return false;
+  }
+  return state.story.currentEpisodeIndex > 0 || state.story.seenSceneIds.length > 0 || state.story.completedEpisodes.length > 0;
+}
+
+function syncStoryStartButtons() {
+  if (!storyContinueButton) {
+    return;
+  }
+  const showContinue = hasStoryContinuation();
+  storyContinueButton.hidden = !showContinue;
+  storyStartButton.textContent = state.story.campaignComplete ? 'Replay Story' : 'Start Story';
+}
+
+function clearStoryCutsceneTimers() {
+  if (!state.storyCutsceneRuntime) {
+    return;
+  }
+  clearInterval(state.storyCutsceneRuntime.revealTimer);
+  clearTimeout(state.storyCutsceneRuntime.autoAdvanceTimer);
+}
+
+function clearStoryPostcreditTimer() {
+  clearInterval(state.storyPostcreditTimer);
+  state.storyPostcreditTimer = null;
+}
+
+function resetStoryRuntimeState() {
+  clearStoryCutsceneTimers();
+  clearStoryPostcreditTimer();
+  state.storyCutsceneRuntime = null;
+  state.storyPostcreditFromLogs = false;
+  state.storyEpisodeProgress = {
+    episodeIndex: null,
+    targetPhase: null,
+    holdSeconds: 0,
+    heldSeconds: 0,
+    lastAnnouncedRemaining: null
+  };
+}
+
+function syncStorySessionVisualState() {
+  const inStorySession = state.storySessionActive;
+  document.body.classList.toggle('is-story-mode', inStorySession);
+  const isStoryCutsceneMode = state.mode === 'story_cutscene' || state.mode === 'story_postcredit';
+  document.body.classList.toggle('is-story-cutscene', isStoryCutsceneMode);
+}
+
+function syncStoryCinematicFrame() {
+  let mood = null;
+  if (state.mode === 'story_cutscene' && state.storyCutsceneRuntime) {
+    const sceneId = state.storyCutsceneRuntime.sceneId;
+    const matchingEpisode = STORY_EPISODES.find((episode) => episode.sceneId === sceneId);
+    if (matchingEpisode) {
+      mood = matchingEpisode.mood;
+    } else if (sceneId === 'final_witness') {
+      mood = 'last';
+    }
+  } else {
+    const activeEpisode = state.storyEpisodeProgress.episodeIndex;
+    mood = Number.isInteger(activeEpisode) ? STORY_EPISODES[activeEpisode]?.mood : null;
+  }
+  frame.classList.toggle('story-cinematic', state.mode === 'story_cutscene');
+  frame.classList.remove('story-mood-wake', 'story-mood-ghost', 'story-mood-shatter', 'story-mood-collapse', 'story-mood-last');
+  if (state.mode === 'story_cutscene' && mood) {
+    frame.classList.add(`story-mood-${mood}`);
+  }
+}
+
 function setMode(mode) {
   state.mode = mode;
   overlayStart.classList.toggle('is-visible', mode === 'start' || mode === 'countdown');
   overlayOver.classList.toggle('is-visible', mode === 'gameover');
+  overlayStory.classList.toggle('is-visible', mode === 'story_cutscene');
+  overlayPostcredit.classList.toggle('is-visible', mode === 'story_postcredit');
+  overlayLogs.classList.toggle('is-visible', mode === 'story_logs');
   syncPauseButton();
   syncHyperdriveVisualState();
   syncParadoxChargeState();
+  syncStorySessionVisualState();
+  syncStoryCinematicFrame();
+  if (mode === 'start') {
+    syncStoryStartButtons();
+  }
   renderUpgrades();
   renderPerkTree();
 }
@@ -615,12 +1068,12 @@ function syncPauseButton() {
   if (!pauseButton) {
     return;
   }
-  const isVisible = state.mode === 'playing' || state.mode === 'paused';
+  const isVisible = isGameplayMode();
   pauseButton.hidden = !isVisible;
   if (!isVisible) {
     return;
   }
-  const isPaused = state.mode === 'paused';
+  const isPaused = state.mode === 'paused' || state.mode === 'story_paused';
   pauseButton.textContent = isPaused ? '\u25B6' : 'II';
   pauseButton.setAttribute('aria-label', isPaused ? 'Resume game' : 'Pause game');
 }
@@ -655,6 +1108,394 @@ function syncMobilePanels(forceDefault = false) {
   }
 
   mobilePanelMode = isMobile;
+}
+
+function storySceneForEpisode(episodeIndex) {
+  const episode = STORY_EPISODES[episodeIndex];
+  return episode ? episode.sceneId : null;
+}
+
+function activeStoryEpisodeConfig() {
+  if (state.mode !== 'story_playing' && state.mode !== 'story_paused') {
+    return null;
+  }
+  if (!Number.isInteger(state.storyEpisodeProgress.episodeIndex)) {
+    return null;
+  }
+  return STORY_EPISODES[state.storyEpisodeProgress.episodeIndex] ?? null;
+}
+
+function resetStoryCampaignProgress() {
+  state.story = defaultStoryProgress();
+  persistStoryProgress();
+  syncStoryStartButtons();
+}
+
+function beginStorySession() {
+  state.storySessionActive = true;
+  syncStorySessionVisualState();
+}
+
+function endStorySession() {
+  state.storySessionActive = false;
+  resetStoryRuntimeState();
+  syncStorySessionVisualState();
+}
+
+function updateOverlayOverCopyForMode(isStoryGameOver) {
+  if (!overlayOverTitleEl) {
+    return;
+  }
+  if (isStoryGameOver) {
+    overlayOverTitleEl.textContent = 'Episode Failed';
+    restartButton.textContent = 'Retry Episode';
+    overlayOver.classList.add('is-story-gameover');
+    return;
+  }
+  overlayOverTitleEl.textContent = 'Game Over';
+  restartButton.textContent = 'Restart';
+  overlayOver.classList.remove('is-story-gameover');
+}
+
+function clearStoryLines() {
+  storyLineTextEl.textContent = '';
+  storyLineTextEl.classList.remove('is-unknown');
+}
+
+function isUnknownSignalLine(line) {
+  return typeof line === 'string' && line.startsWith('[UNKNOWN_SIGNAL]');
+}
+
+function renderStoryLine(line, visibleChars = line.length) {
+  const safeLine = String(line || '');
+  const sliced = safeLine.slice(0, Math.max(0, Math.min(safeLine.length, visibleChars)));
+  storyLineTextEl.textContent = sliced;
+  storyLineTextEl.classList.toggle('is-unknown', isUnknownSignalLine(safeLine));
+}
+
+function setStorySceneCursor(sceneId, lineIndex) {
+  state.story.currentSceneCursor = {
+    sceneId,
+    lineIndex
+  };
+  persistStoryProgress();
+}
+
+function clearStorySceneCursor() {
+  state.story.currentSceneCursor = null;
+  persistStoryProgress();
+}
+
+function currentSceneTempo(sceneId) {
+  return STORY_CUTSCENE_TEMPO[sceneId] || STORY_CUTSCENE_TEMPO.episode_1;
+}
+
+function startStoryLineReveal() {
+  const runtime = state.storyCutsceneRuntime;
+  if (!runtime) {
+    return;
+  }
+  clearStoryCutsceneTimers();
+  const scene = STORY_SCENES[runtime.sceneId];
+  const line = scene.lines[runtime.lineIndex] || '';
+  const tempo = currentSceneTempo(runtime.sceneId);
+  runtime.revealIndex = 0;
+  runtime.awaitingAdvance = false;
+  renderStoryLine(line, 0);
+  setStorySceneCursor(runtime.sceneId, runtime.lineIndex);
+  runtime.revealTimer = setInterval(() => {
+    runtime.revealIndex += 1;
+    renderStoryLine(line, runtime.revealIndex);
+    if (runtime.revealIndex >= line.length) {
+      clearInterval(runtime.revealTimer);
+      runtime.revealTimer = null;
+      runtime.awaitingAdvance = true;
+      runtime.autoAdvanceTimer = setTimeout(() => {
+        advanceStorySceneLine();
+      }, tempo.holdMs);
+    }
+  }, tempo.charMs);
+}
+
+function revealStoryLineInstant() {
+  const runtime = state.storyCutsceneRuntime;
+  if (!runtime) {
+    return;
+  }
+  const scene = STORY_SCENES[runtime.sceneId];
+  const line = scene.lines[runtime.lineIndex] || '';
+  clearInterval(runtime.revealTimer);
+  runtime.revealTimer = null;
+  runtime.revealIndex = line.length;
+  runtime.awaitingAdvance = true;
+  renderStoryLine(line, line.length);
+}
+
+function completeStoryScene({ wasSkipped = false } = {}) {
+  const runtime = state.storyCutsceneRuntime;
+  if (!runtime) {
+    return;
+  }
+  clearStoryCutsceneTimers();
+  const sceneId = runtime.sceneId;
+  const action = runtime.onCompleteAction;
+  const sawEntireScene = runtime.lineIndex >= (STORY_SCENES[sceneId]?.lines.length || 0) - 1 && !wasSkipped;
+  if (sawEntireScene || !wasSkipped) {
+    markStorySceneSeen(sceneId);
+  }
+  clearStorySceneCursor();
+  state.storyCutsceneRuntime = null;
+  if (action === 'start_episode') {
+    beginStoryEpisodeGameplay(state.story.currentEpisodeIndex);
+    return;
+  }
+  if (action === 'final_postcredit') {
+    startStoryPostcredit();
+    return;
+  }
+  if (action === 'return_logs') {
+    openLogsOverlay();
+    return;
+  }
+  setMode('start');
+}
+
+function advanceStorySceneLine() {
+  const runtime = state.storyCutsceneRuntime;
+  if (!runtime) {
+    return;
+  }
+  const scene = STORY_SCENES[runtime.sceneId];
+  if (!scene) {
+    return;
+  }
+  clearTimeout(runtime.autoAdvanceTimer);
+  runtime.autoAdvanceTimer = null;
+  if (!runtime.awaitingAdvance) {
+    revealStoryLineInstant();
+    return;
+  }
+  runtime.lineIndex += 1;
+  if (runtime.lineIndex >= scene.lines.length) {
+    completeStoryScene();
+    return;
+  }
+  startStoryLineReveal();
+}
+
+function skipStoryScene() {
+  if (!state.storyCutsceneRuntime?.canSkip) {
+    return;
+  }
+  completeStoryScene({ wasSkipped: true });
+}
+
+function playStoryScene(sceneId, onCompleteAction, options = {}) {
+  const scene = STORY_SCENES[sceneId];
+  if (!scene) {
+    return;
+  }
+  beginStorySession();
+  unlockStoryScene(sceneId);
+  const canSkip = options.canSkip ?? hasSeenStoryScene(sceneId);
+  const initialLine = Number.isInteger(options.startLineIndex) ? options.startLineIndex : 0;
+  state.storyCutsceneRuntime = {
+    sceneId,
+    lineIndex: Math.max(0, Math.min(scene.lines.length - 1, initialLine)),
+    revealIndex: 0,
+    awaitingAdvance: false,
+    revealTimer: null,
+    autoAdvanceTimer: null,
+    canSkip,
+    onCompleteAction
+  };
+  state.obstacles = [];
+  obstaclesEl.innerHTML = '';
+  storySceneLabelEl.textContent = scene.label;
+  storySceneTitleEl.textContent = scene.title;
+  storySkipButton.hidden = !canSkip;
+  clearStoryLines();
+  setMode('story_cutscene');
+  startStoryLineReveal();
+}
+
+function beginStoryEpisodeGameplay(episodeIndex) {
+  const episode = STORY_EPISODES[episodeIndex];
+  if (!episode) {
+    return;
+  }
+  beginStorySession();
+  state.story.currentEpisodeIndex = episodeIndex;
+  persistStoryProgress();
+  commitPerkTreeProgressForSelectedPerk();
+  resetGame();
+  state.storyEpisodeProgress = {
+    episodeIndex,
+    targetPhase: episode.targetPhase,
+    holdSeconds: episode.holdSeconds,
+    heldSeconds: 0,
+    lastAnnouncedRemaining: null
+  };
+  state.nextGameplayMode = 'story_playing';
+  setMode('story_playing');
+  showFeedback(`Story Objective: hold ${episode.targetPhase} for ${episode.holdSeconds}s`, 1500);
+  requestAnimationFrame(loop);
+}
+
+function completeStoryEpisode() {
+  const episodeIndex = state.storyEpisodeProgress.episodeIndex;
+  if (!Number.isInteger(episodeIndex)) {
+    return;
+  }
+  const completed = new Set(state.story.completedEpisodes);
+  completed.add(episodeIndex);
+  state.story.completedEpisodes = Array.from(completed).sort((a, b) => a - b);
+  const nextEpisode = episodeIndex + 1;
+  if (nextEpisode < STORY_EPISODES.length) {
+    state.story.currentEpisodeIndex = nextEpisode;
+    persistStoryProgress();
+    setMode('story_episode_over');
+    setTimeout(() => {
+      playStoryScene(storySceneForEpisode(nextEpisode), 'start_episode');
+    }, 520);
+    return;
+  }
+  state.story.currentEpisodeIndex = STORY_EPISODES.length - 1;
+  persistStoryProgress();
+  setMode('story_episode_over');
+  setTimeout(() => {
+    playStoryScene('final_witness', 'final_postcredit');
+  }, 620);
+}
+
+function updateStoryEpisodeProgress(dt) {
+  if (state.mode !== 'story_playing') {
+    return;
+  }
+  const goal = state.storyEpisodeProgress;
+  if (!goal.targetPhase || goal.holdSeconds <= 0) {
+    return;
+  }
+  if (state.eventPhase === goal.targetPhase) {
+    goal.heldSeconds = Math.min(goal.holdSeconds, goal.heldSeconds + dt);
+    const remaining = Math.ceil(Math.max(0, goal.holdSeconds - goal.heldSeconds));
+    if (remaining > 0 && goal.lastAnnouncedRemaining !== remaining) {
+      goal.lastAnnouncedRemaining = remaining;
+      showFeedback(`Objective hold: ${remaining}s`, 460);
+    }
+    if (goal.heldSeconds >= goal.holdSeconds) {
+      completeStoryEpisode();
+    }
+  } else {
+    goal.lastAnnouncedRemaining = null;
+  }
+}
+
+function storySpawnBias() {
+  const episode = activeStoryEpisodeConfig();
+  return episode ? episode.spawnBias : 'default';
+}
+
+function openLogsOverlay() {
+  renderLogsList();
+  setMode('story_logs');
+}
+
+function renderLogsList() {
+  if (!logsListEl) {
+    return;
+  }
+  const unlocked = new Set(state.story.unlockedSceneIds);
+  const rows = STORY_SCENE_ORDER.map((sceneId) => {
+    const scene = STORY_SCENES[sceneId];
+    const isUnlocked = unlocked.has(sceneId);
+    const button = document.createElement('button');
+    button.className = 'log-item';
+    button.type = 'button';
+    button.disabled = !isUnlocked;
+    button.textContent = isUnlocked
+      ? `${scene.label}: ${scene.title}`
+      : `${scene.label}: Locked`;
+    if (isUnlocked) {
+      button.addEventListener('click', () => {
+        if (sceneId === 'final_transmission') {
+          startStoryPostcredit({ fromLogs: true });
+        } else {
+          playStoryScene(sceneId, 'return_logs', { canSkip: true });
+        }
+      });
+    }
+    return button;
+  });
+  logsListEl.innerHTML = '';
+  rows.forEach((row) => logsListEl.appendChild(row));
+}
+
+function renderPostcreditLines(sceneId = 'final_transmission') {
+  const scene = STORY_SCENES[sceneId];
+  if (!scene || !postcreditScrollEl) {
+    return;
+  }
+  postcreditScrollEl.innerHTML = scene.lines
+    .map((line) => `<p class="postcredit-line${isUnknownSignalLine(line) ? ' is-unknown' : ''}">${escapeHtml(line)}</p>`)
+    .join('');
+}
+
+function finishStoryPostcredit() {
+  clearStoryPostcreditTimer();
+  if (state.storyPostcreditFromLogs) {
+    state.storyPostcreditFromLogs = false;
+    openLogsOverlay();
+    return;
+  }
+  markStorySceneSeen('final_transmission');
+  state.story.campaignComplete = true;
+  persistStoryProgress();
+  syncStoryStartButtons();
+  endStorySession();
+  setMode('start');
+}
+
+function startStoryPostcredit(options = {}) {
+  const fromLogs = Boolean(options.fromLogs);
+  if (!fromLogs) {
+    beginStorySession();
+  }
+  state.storyPostcreditFromLogs = fromLogs;
+  unlockStoryScene('final_transmission');
+  renderPostcreditLines('final_transmission');
+  const canSkipPostcredit = hasSeenStoryScene('final_transmission') || fromLogs;
+  postcreditSkipButton.hidden = !canSkipPostcredit;
+  postcreditCloseButton.hidden = !canSkipPostcredit;
+  if (postcreditScrollWrapEl) {
+    postcreditScrollWrapEl.scrollTop = 0;
+  }
+  clearStoryPostcreditTimer();
+  setMode('story_postcredit');
+  state.storyPostcreditTimer = setInterval(() => {
+    if (!postcreditScrollWrapEl) {
+      return;
+    }
+    postcreditScrollWrapEl.scrollTop += 0.8;
+    const maxScroll = postcreditScrollWrapEl.scrollHeight - postcreditScrollWrapEl.clientHeight;
+    if (postcreditScrollWrapEl.scrollTop >= maxScroll - 2) {
+      clearStoryPostcreditTimer();
+      if (!fromLogs) {
+        finishStoryPostcredit();
+      }
+    }
+  }, 16);
+}
+
+function startStoryMode({ continueCampaign = false } = {}) {
+  if (!continueCampaign) {
+    resetStoryCampaignProgress();
+  }
+  beginStorySession();
+  const episodeIndex = Math.max(0, Math.min(STORY_EPISODES.length - 1, state.story.currentEpisodeIndex));
+  state.story.currentEpisodeIndex = episodeIndex;
+  persistStoryProgress();
+  playStoryScene(storySceneForEpisode(episodeIndex), 'start_episode');
 }
 
 function currentPerk() {
@@ -927,7 +1768,9 @@ function activePerkTooltipText() {
 }
 
 function isParadoxChargeActive() {
-  return state.mode === 'playing' && state.runPerkState.paradoxWindowDuration > 0 && state.precisionParadoxTimer > 0;
+  return (state.mode === 'playing' || state.mode === 'story_playing')
+    && state.runPerkState.paradoxWindowDuration > 0
+    && state.precisionParadoxTimer > 0;
 }
 
 function syncParadoxChargeState() {
@@ -940,7 +1783,7 @@ function syncParadoxChargeState() {
 }
 
 function isHyperdriveActive() {
-  return state.mode === 'playing' && state.hyperdriveActiveTimer > 0;
+  return (state.mode === 'playing' || state.mode === 'story_playing') && state.hyperdriveActiveTimer > 0;
 }
 
 function syncHyperdriveVisualState() {
@@ -1083,7 +1926,7 @@ function upgradeCost(type) {
 }
 
 function canPurchase(type) {
-  const canBuyBetweenRuns = state.mode === 'start' || state.mode === 'gameover';
+  const canBuyBetweenRuns = state.mode === 'start' || state.mode === 'gameover' || state.mode === 'story_logs';
   if (!canBuyBetweenRuns) {
     return false;
   }
@@ -1098,7 +1941,7 @@ function renderUpgrades() {
     return;
   }
   if (upgradesSubcopyEl) {
-    upgradesSubcopyEl.textContent = 'Permanent';
+    upgradesSubcopyEl.textContent = state.storySessionActive ? 'Story Loadout' : 'Permanent';
   }
   if (upgradeStatusEl) {
     upgradeStatusEl.textContent = `Earn ${UPGRADE_SCRAP_PER_STEP} scrap every ${UPGRADE_POINT_STEP} score`;
@@ -1179,11 +2022,15 @@ function resetGame() {
   feedbackEl.classList.remove('is-visible');
   scoreEl.classList.remove('is-flashing');
   overlayOver.classList.remove('is-saved');
+  overlayOver.classList.remove('is-story-gameover');
+  updateOverlayOverCopyForMode(false);
   if (saveStatusEl) {
     saveStatusEl.hidden = true;
     saveStatusEl.textContent = '';
   }
-  scoreboardStatusEl.textContent = supabaseClient ? '' : 'Configure Supabase to enable the shared leaderboard.';
+  scoreboardStatusEl.textContent = state.storySessionActive
+    ? 'Leaderboard disabled in Story Mode.'
+    : (supabaseClient ? '' : 'Configure Supabase to enable the shared leaderboard.');
   saveScoreButton.disabled = false;
   obstaclesEl.innerHTML = '';
   scoreEl.textContent = '0.0';
@@ -1197,15 +2044,20 @@ function resetGame() {
 }
 
 function startGame() {
+  endStorySession();
+  syncStoryStartButtons();
   commitPerkTreeProgressForSelectedPerk();
   resetGame();
   state.countdown = 3;
+  state.nextGameplayMode = 'playing';
   setMode('countdown');
   requestAnimationFrame(loop);
 }
 
 function gameOver() {
+  const wasStoryRun = state.mode === 'story_playing';
   setMode('gameover');
+  updateOverlayOverCopyForMode(wasStoryRun);
   overlayOver.classList.remove('is-saved');
   if (saveStatusEl) {
     saveStatusEl.hidden = true;
@@ -1224,11 +2076,13 @@ function gameOver() {
     bestEl.textContent = state.best.toFixed(1);
   }
   playerNameEl.value = '';
-  playerNameEl.focus();
-  window.setTimeout(() => {
-    playerNameEl.focus({ preventScroll: true });
-  }, 80);
-  window.setTimeout(() => playerNameEl.focus(), 80);
+  if (!wasStoryRun) {
+    playerNameEl.focus();
+    window.setTimeout(() => {
+      playerNameEl.focus({ preventScroll: true });
+    }, 80);
+    window.setTimeout(() => playerNameEl.focus(), 80);
+  }
   const earnedPoints = scrapEarnedFromScore(state.score);
   if (earnedPoints > 0) {
     state.upgrades.points += earnedPoints;
@@ -1245,6 +2099,11 @@ function gameOver() {
     perkInfoCopyEl.textContent = pendingPerk
       ? `${pendingPerk.name} selected for the next run.`
       : 'Choose one perk for your next run.';
+  }
+
+  if (wasStoryRun) {
+    saveScoreButton.disabled = true;
+    scoreboardStatusEl.textContent = 'Story Mode: leaderboard save unavailable.';
   }
 
   renderUpgrades();
@@ -1313,6 +2172,17 @@ async function submitScore() {
     return true;
   }
 
+  if (state.storySessionActive) {
+    state.savedScore = true;
+    saveScoreButton.disabled = true;
+    scoreboardStatusEl.textContent = 'Leaderboard submissions are disabled in Story Mode.';
+    if (saveStatusEl) {
+      saveStatusEl.textContent = 'Story run recorded locally. Retry to continue the episode.';
+      saveStatusEl.hidden = false;
+    }
+    return true;
+  }
+
   const rawName = playerNameEl.value.trim();
   const cheatToken = rawName.toLowerCase();
   if (cheatToken === '100scrp') {
@@ -1368,7 +2238,7 @@ async function submitScore() {
 }
 
 function canControlGameplay() {
-  return state.mode === 'playing';
+  return state.mode === 'playing' || state.mode === 'story_playing';
 }
 
 function togglePause() {
@@ -1377,8 +2247,20 @@ function togglePause() {
     showFeedback('Paused', 760);
     return;
   }
+  if (state.mode === 'story_playing') {
+    setMode('story_paused');
+    showFeedback('Paused', 760);
+    return;
+  }
   if (state.mode === 'paused') {
     setMode('playing');
+    state.lastTime = 0;
+    showFeedback('Resumed', 620);
+    requestAnimationFrame(loop);
+    return;
+  }
+  if (state.mode === 'story_paused') {
+    setMode('story_playing');
     state.lastTime = 0;
     showFeedback('Resumed', 620);
     requestAnimationFrame(loop);
@@ -1925,7 +2807,11 @@ function setEventPhase(phase) {
 }
 
 function pickNextEventPhase() {
+  const bias = storySpawnBias();
   if (state.eventPhase === 'Collapse') {
+    if (bias === 'collapse_recurrence' || bias === 'final_mix') {
+      return Math.random() < 0.52 ? 'Collapse' : 'Overdrive';
+    }
     return 'Overdrive';
   }
 
@@ -1934,6 +2820,24 @@ function pickNextEventPhase() {
   }
 
   const roll = Math.random();
+  if (bias === 'collapse_recurrence') {
+    if (roll < 0.64) {
+      return 'Collapse';
+    }
+    if (roll < 0.86) {
+      return 'Overdrive';
+    }
+    return 'Cruise';
+  }
+  if (bias === 'final_mix') {
+    if (roll < 0.58) {
+      return 'Collapse';
+    }
+    if (roll < 0.82) {
+      return 'Overdrive';
+    }
+    return 'Cruise';
+  }
   if (roll < 0.45) {
     return 'Collapse';
   }
@@ -2024,14 +2928,22 @@ function canSpawnSplitter() {
 }
 
 function pickSpecialObstacleProfile() {
+  const bias = storySpawnBias();
   if (canSpawnSplitter()) {
     const splitterProgress = progressBetween(state.difficultyScore, ENEMY_VARIETY_TUNING.splitterUnlockDifficulty, 95);
     const splitterPhaseBonus = state.eventPhase === 'Collapse' ? 0.06 : 0.03;
-    const splitterWeight = clamp(
+    let splitterWeight = clamp(
       lerp(0.05, ENEMY_VARIETY_TUNING.splitterMaxWeight, splitterProgress) + splitterPhaseBonus,
       0.05,
       ENEMY_VARIETY_TUNING.splitterMaxWeight
     );
+    if (bias === 'splitter_focus') {
+      splitterWeight = clamp(splitterWeight * 2, 0.05, 0.42);
+    } else if (bias === 'phantom_focus') {
+      splitterWeight = clamp(splitterWeight * 0.72, 0.03, 0.24);
+    } else if (bias === 'final_mix') {
+      splitterWeight = clamp(splitterWeight * 1.55, 0.08, 0.46);
+    }
     if (Math.random() < splitterWeight) {
       return SPLITTER_OBSTACLE_PROFILE;
     }
@@ -2040,11 +2952,18 @@ function pickSpecialObstacleProfile() {
   if (canSpawnPhantom()) {
     const phantomProgress = progressBetween(state.difficultyScore, ENEMY_VARIETY_TUNING.phantomUnlockDifficulty, 92);
     const phantomPhaseBonus = state.eventPhase === 'Collapse' ? 0.05 : state.eventPhase === 'Overdrive' ? 0.03 : 0;
-    const phantomWeight = clamp(
+    let phantomWeight = clamp(
       lerp(0.06, ENEMY_VARIETY_TUNING.phantomMaxWeight, phantomProgress) + phantomPhaseBonus,
       0.06,
       ENEMY_VARIETY_TUNING.phantomMaxWeight
     );
+    if (bias === 'phantom_focus') {
+      phantomWeight = clamp(phantomWeight * 2.15, 0.08, 0.45);
+    } else if (bias === 'splitter_focus') {
+      phantomWeight = clamp(phantomWeight * 0.7, 0.04, 0.22);
+    } else if (bias === 'final_mix') {
+      phantomWeight = clamp(phantomWeight * 1.45, 0.08, 0.4);
+    }
     if (Math.random() < phantomWeight) {
       return PHANTOM_OBSTACLE_PROFILE;
     }
@@ -2077,6 +2996,7 @@ function pickLane() {
 }
 
 function currentIntensityState() {
+  const bias = storySpawnBias();
   const difficulty = state.difficultyScore;
 
   if (state.hasEnteredCollapse) {
@@ -2098,8 +3018,8 @@ function currentIntensityState() {
 
     return {
       label: 'Collapse',
-      speed: MAX_SPEED,
-      spawnDelay: MIN_SPAWN_DELAY
+      speed: bias === 'final_mix' ? clamp(MAX_SPEED + 14, MIN_SPEED, MAX_SPEED) : MAX_SPEED,
+      spawnDelay: bias === 'final_mix' ? Math.max(MIN_SPAWN_DELAY, MIN_SPAWN_DELAY - 0.02) : MIN_SPAWN_DELAY
     };
   }
 
@@ -2132,8 +3052,8 @@ function currentIntensityState() {
 
   return {
     label: 'Collapse',
-    speed: MAX_SPEED,
-    spawnDelay: MIN_SPAWN_DELAY
+    speed: bias === 'final_mix' ? clamp(MAX_SPEED + 14, MIN_SPEED, MAX_SPEED) : MAX_SPEED,
+    spawnDelay: bias === 'final_mix' ? Math.max(MIN_SPAWN_DELAY, MIN_SPAWN_DELAY - 0.02) : MIN_SPAWN_DELAY
   };
 }
 
@@ -2186,7 +3106,7 @@ function loop(timestamp) {
     countdownEl.textContent = 'Go';
     countdownEl.classList.add('is-go');
     triggerCountdownPop();
-    setMode('playing');
+    setMode(state.nextGameplayMode || 'playing');
     clearTimeout(state.goTimeout);
     state.goTimeout = setTimeout(() => {
       countdownEl.classList.remove('is-go');
@@ -2198,7 +3118,7 @@ function loop(timestamp) {
     return;
   }
 
-  if (state.mode !== 'playing') {
+  if (state.mode !== 'playing' && state.mode !== 'story_playing') {
     return;
   }
 
@@ -2221,6 +3141,12 @@ function loop(timestamp) {
   const tempoSpawnMultiplier = tempoActive ? state.runPerkState.tempoSpawnDelayMultiplier : 1;
   const tempoSpeedOffset = tempoActive ? state.runPerkState.tempoSpeedOffset : 0;
   updateEventPhase(dt);
+  if (state.mode === 'story_playing') {
+    updateStoryEpisodeProgress(dt);
+    if (state.mode !== 'story_playing') {
+      return;
+    }
+  }
   const intensity = currentIntensityState();
   state.eventLabel = intensity.label;
   const hyperdriveTimelineMultiplier = state.hyperdriveActiveTimer > 0 ? HYPERDRIVE_TIMELINE_SPEED_MULTIPLIER : 1;
@@ -2387,19 +3313,60 @@ function handleAction(event) {
   toggleLane();
 }
 
+async function retryStoryEpisodeFromGameOver() {
+  await submitScore();
+  const currentEpisodeScene = storySceneForEpisode(state.story.currentEpisodeIndex);
+  playStoryScene(currentEpisodeScene, 'start_episode', { canSkip: hasSeenStoryScene(currentEpisodeScene) });
+}
+
+function handleStoryOverlayAdvance() {
+  if (state.mode === 'story_cutscene') {
+    advanceStorySceneLine();
+    return true;
+  }
+  if (state.mode === 'story_postcredit') {
+    if (!postcreditCloseButton.hidden || !postcreditSkipButton.hidden) {
+      finishStoryPostcredit();
+    }
+    return true;
+  }
+  return false;
+}
+
 saveScoreButton.addEventListener('click', async () => {
   await submitScore();
 });
 restartButton.addEventListener('click', async () => {
-  submitScore();
+  if (state.storySessionActive && state.mode === 'gameover') {
+    await retryStoryEpisodeFromGameOver();
+    return;
+  }
+  await submitScore();
   startGame();
 });
 document.addEventListener('keydown', handleAction);
 document.addEventListener('keydown', async (event) => {
+  if ((event.code === 'Space' || event.code === 'Enter') && handleStoryOverlayAdvance()) {
+    event.preventDefault();
+    return;
+  }
+  if (state.mode === 'story_logs' && event.code === 'Escape') {
+    event.preventDefault();
+    if (state.storySessionActive) {
+      endStorySession();
+    }
+    setMode('start');
+    return;
+  }
   if (state.mode === 'gameover' && event.code === 'Enter') {
     event.preventDefault();
-    submitScore();
+    if (state.storySessionActive) {
+      await retryStoryEpisodeFromGameOver();
+      return;
+    }
+    await submitScore();
     startGame();
+    return;
   }
   if ((state.mode === 'start' || state.mode === 'countdown') && event.code === 'Space') {
     event.preventDefault();
@@ -2472,6 +3439,42 @@ playerNameEl.addEventListener('keydown', (event) => {
   }
 });
 startButton.addEventListener('click', startGame);
+storyStartButton?.addEventListener('click', () => {
+  startStoryMode({ continueCampaign: false });
+});
+storyContinueButton?.addEventListener('click', () => {
+  startStoryMode({ continueCampaign: true });
+});
+logsButton?.addEventListener('click', () => {
+  openLogsOverlay();
+});
+logsCloseButton?.addEventListener('click', () => {
+  if (state.storySessionActive) {
+    endStorySession();
+  }
+  setMode('start');
+});
+storyAdvanceButton?.addEventListener('click', () => {
+  advanceStorySceneLine();
+});
+storySkipButton?.addEventListener('click', () => {
+  skipStoryScene();
+});
+overlayStory?.addEventListener('pointerdown', (event) => {
+  if (event.target.closest('button')) {
+    return;
+  }
+  if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+    event.preventDefault();
+  }
+  advanceStorySceneLine();
+});
+postcreditCloseButton?.addEventListener('click', () => {
+  finishStoryPostcredit();
+});
+postcreditSkipButton?.addEventListener('click', () => {
+  finishStoryPostcredit();
+});
 buyFlowButton.addEventListener('click', () => purchaseUpgrade('flow'));
 buyShieldButton.addEventListener('click', () => purchaseUpgrade('shield'));
 buyScannerButton?.addEventListener('click', () => purchaseUpgrade('scanner'));
@@ -2505,3 +3508,4 @@ window.addEventListener('resize', () => {
     obstacle.el.style.top = `${laneTop(obstacle.lane)}px`;
   });
 });
+
