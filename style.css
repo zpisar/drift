@@ -7,6 +7,7 @@
   --story-bg: #05070c;
   --story-bg-soft: #0a0f18;
   --story-cream: var(--bg);
+  --story-title: #fffcf5;
   --story-line: rgba(247, 244, 237, 0.3);
   --story-ink: #111317;
 }
@@ -35,11 +36,11 @@ body.is-story-mode .scoreboard {
 }
 
 body.is-story-mode .layout {
-  max-width: 1140px;
-  grid-template-columns: minmax(680px, 1fr) minmax(220px, 280px);
+  max-width: 1420px;
+  grid-template-columns: minmax(220px, 280px) minmax(680px, 1fr) minmax(220px, 280px);
   grid-template-areas:
-    "game upgrades"
-    "tree tree";
+    ". game upgrades"
+    "tree tree tree";
 }
 
 body.is-story-cutscene .upgrades {
@@ -933,6 +934,13 @@ button {
 }
 
 #overlay-over.is-story-gameover {
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+  height: 100%;
+  max-height: 100%;
+  justify-items: stretch;
+  align-content: start;
   background:
     radial-gradient(circle at 12% 18%, rgba(247, 244, 237, 0.08), transparent 50%),
     linear-gradient(180deg, rgba(6, 9, 15, 0.98), rgba(2, 4, 8, 0.99));
@@ -946,6 +954,10 @@ button {
 #overlay-over.is-story-gameover .panel-value {
   color: var(--story-cream);
   opacity: 1;
+}
+
+#overlay-over.is-story-gameover #overlay-over-title {
+  color: var(--story-title);
 }
 
 #overlay-over.is-story-gameover .panel-card {
@@ -964,6 +976,10 @@ button {
   color: rgba(247, 244, 237, 0.84);
 }
 
+#overlay-over.is-story-gameover .overlay-actions {
+  width: min(100%, 24rem);
+}
+
 #overlay-story,
 #overlay-postcredit,
 #overlay-logs {
@@ -974,11 +990,17 @@ button {
 
 #overlay-story,
 #overlay-postcredit {
+  --story-card-width: 56rem;
+  --story-card-height: 172px;
   background:
     radial-gradient(circle at 14% 20%, rgba(247, 244, 237, 0.06), transparent 56%),
     linear-gradient(180deg, rgba(7, 11, 20, 0.97), rgba(3, 6, 12, 0.98));
   color: var(--story-cream);
   border: 1px solid var(--story-line);
+}
+
+#story-scene-title {
+  color: var(--story-title);
 }
 
 #overlay-story h2,
@@ -1007,7 +1029,9 @@ button {
   margin-top: 10px;
   border: 1px solid rgba(247, 244, 237, 0.22);
   border-radius: 16px;
-  min-height: 172px;
+  width: min(100%, var(--story-card-width));
+  min-height: var(--story-card-height);
+  height: var(--story-card-height);
   padding: 14px 16px;
   display: grid;
   gap: 10px;
@@ -1015,6 +1039,16 @@ button {
     linear-gradient(180deg, rgba(12, 18, 30, 0.94), rgba(6, 10, 17, 0.97)),
     radial-gradient(circle at 12% 12%, rgba(247, 244, 237, 0.09), transparent 68%);
   box-shadow: inset 0 0 34px rgba(0, 0, 0, 0.52);
+}
+
+.story-line-card-measure {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  z-index: -1;
 }
 
 .story-line-text {
@@ -1086,9 +1120,7 @@ button {
   background: linear-gradient(180deg, rgba(8, 12, 21, 0.92), rgba(5, 8, 14, 0.96));
   min-height: 52vh;
   max-height: 60vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: none;
+  overflow: hidden;
 }
 
 .postcredit-scroll-wrap::-webkit-scrollbar {
@@ -1096,10 +1128,15 @@ button {
 }
 
 .postcredit-scroll {
-  padding: 20px 16px 84px;
   white-space: pre-wrap;
   line-height: 1.56;
   font-size: 0.96rem;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.postcredit-loop {
+  padding: 20px 16px 84px;
 }
 
 .postcredit-line {
@@ -1804,7 +1841,9 @@ button {
   }
 
   .story-line-card {
-    min-height: 180px;
+    width: 100%;
+    min-height: min(var(--story-card-height), 56svh);
+    height: auto;
   }
 
   .postcredit-scroll-wrap {

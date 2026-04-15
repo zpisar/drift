@@ -12,6 +12,7 @@ const logsButton = document.getElementById('logs-button');
 const storyDebugToggleButton = document.getElementById('story-debug-toggle-button');
 const saveScoreButton = document.getElementById('save-score-button');
 const restartButton = document.getElementById('restart-button');
+const storyMainMenuButton = document.getElementById('story-main-menu-button');
 const countdownEl = document.getElementById('countdown');
 const pauseButton = document.getElementById('pause-button');
 const storyDebugNextButton = document.getElementById('story-debug-next-button');
@@ -72,6 +73,8 @@ const mobilePanelQuery = window.matchMedia('(max-width: 760px)');
 let mobilePanelMode = null;
 let lastPerkTooltipAt = 0;
 let lastPerkTreeTooltipAt = 0;
+let perkTreeTouchTooltipTimeout = null;
+let perkTreeTouchHoldUntil = 0;
 
 const STORAGE_KEY = 'drift-best-score';
 const PROGRESS_STORAGE_KEY = 'drift-progress';
@@ -114,6 +117,7 @@ const LAST_SIGNAL_STASIS_SPAWN_DELAY_MULTIPLIER = 1.32;
 const LAST_SIGNAL_POST_TRIGGER_GRACE = 0.5;
 const LAST_SIGNAL_TRIGGER_SCORE_BONUS = 1.5;
 const STORY_POSTCREDIT_SCROLL_SPEED = 12.5;
+const STORY_PERK_TOOLTIP_TOUCH_MS = 4000;
 const MAX_FAMILY_PERK_LEVEL = 3;
 const FAMILY_IDS = Object.freeze({
   tempo: 'tempo',
@@ -1022,6 +1026,14 @@ bindPerkTreeInteractions();
 syncStorySessionVisualState();
 syncStoryStartButtons();
 syncStoryDebugControls();
+measureStoryCardBounds();
+if (document.fonts?.ready) {
+  document.fonts.ready.then(() => {
+    measureStoryCardBounds();
+  }).catch(() => {
+    // ignore font readiness failures and keep fallback card bounds
+  });
+}
 
 function createSupabaseClient() {
   if (
@@ -1115,6 +1127,9 @@ function clearStoryPostcreditMotion() {
   state.storyPostcreditLastTimestamp = 0;
   state.storyPostcreditScrollPos = 0;
   state.storyPostcreditLoopHeight = 0;
+  if (postcreditScrollEl) {
+    postcreditScrollEl.style.transform = 'translate3d(0, 0, 0)';
+  }
 }
 
 function resetStoryRuntimeState() {
@@ -1210,6 +1225,81 @@ function syncStoryCinematicFrame() {
   }
   frame.classList.toggle('story-resolve-witness', resolveState === 'witness');
   frame.classList.toggle('story-resolve-postcredit', resolveState === 'postcredit');
+}
+
+function parsePxValue(rawValue, fallback = 0) {
+  const parsed = Number.parseFloat(rawValue);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function allStoryScenePairs() {
+  const pairs = [];
+  STORY_SCENE_ORDER.forEach((sceneId) => {
+    const scene = STORY_SCENES[sceneId];
+    if (!scene?.lines?.length) {
+      return;
+    }
+    for (let i = 0; i < scene.lines.length; i += 2) {
+      pairs.push([scene.lines[i] || '', scene.lines[i + 1] || '']);
+    }
+  });
+  return pairs;
+}
+
+function measureStoryCardBounds() {
+  if (!overlayStory || !storyLineTopEl || !storyLineBottomEl) {
+    return;
+  }
+  const sourceCard = storyLineTopEl.closest('.story-line-card');
+  if (!sourceCard) {
+    return;
+  }
+  const pairs = allStoryScenePairs();
+  if (!pairs.length) {
+    return;
+  }
+  const textStyle = window.getComputedStyle(storyLineTopEl);
+  const cardStyle = window.getComputedStyle(sourceCard);
+  const measureCanvas = measureStoryCardBounds.canvas || (measureStoryCardBounds.canvas = document.createElement('canvas'));
+  const context = measureCanvas.getContext('2d');
+  if (!context) {
+    return;
+  }
+  context.font = `${textStyle.fontWeight} ${textStyle.fontSize} ${textStyle.fontFamily}`;
+
+  let widestLine = 0;
+  pairs.forEach(([topLine, bottomLine]) => {
+    widestLine = Math.max(widestLine, context.measureText(topLine).width, context.measureText(bottomLine).width);
+  });
+
+  const paddingX = parsePxValue(cardStyle.paddingLeft) + parsePxValue(cardStyle.paddingRight);
+  const borderX = parsePxValue(cardStyle.borderLeftWidth) + parsePxValue(cardStyle.borderRightWidth);
+  const availableWidth = Math.max(360, Math.floor((overlayStory.clientWidth || frame.clientWidth || window.innerWidth) - 48));
+  const targetWidth = clamp(Math.ceil(widestLine + paddingX + borderX + 28), 360, availableWidth);
+
+  const measureCard = document.createElement('div');
+  measureCard.className = 'story-line-card story-line-card-measure';
+  measureCard.style.width = `${targetWidth}px`;
+  measureCard.style.height = 'auto';
+  measureCard.style.minHeight = '0';
+  const measureTop = document.createElement('p');
+  measureTop.className = 'story-line-text';
+  const measureBottom = document.createElement('p');
+  measureBottom.className = 'story-line-text';
+  measureCard.append(measureTop, measureBottom);
+  overlayStory.appendChild(measureCard);
+
+  const baseHeight = Math.ceil(parsePxValue(cardStyle.minHeight, 172));
+  let maxPairHeight = baseHeight;
+  pairs.forEach(([topLine, bottomLine]) => {
+    measureTop.textContent = topLine;
+    measureBottom.textContent = bottomLine;
+    maxPairHeight = Math.max(maxPairHeight, Math.ceil(measureCard.scrollHeight));
+  });
+
+  measureCard.remove();
+  overlayStory.style.setProperty('--story-card-width', `${targetWidth}px`);
+  overlayStory.style.setProperty('--story-card-height', `${maxPairHeight}px`);
 }
 
 function setMode(mode) {
@@ -1340,6 +1430,9 @@ function updateOverlayOverCopyForMode(isStoryGameOver) {
     overlayOverTitleEl.textContent = 'Episode Failed';
     restartButton.textContent = 'Retry Episode';
     overlayOver.classList.add('is-story-gameover');
+    if (storyMainMenuButton) {
+      storyMainMenuButton.hidden = false;
+    }
     if (overlayOverEpisodeContextEl) {
       overlayOverEpisodeContextEl.hidden = false;
       overlayOverEpisodeContextEl.textContent = episode
@@ -1351,6 +1444,9 @@ function updateOverlayOverCopyForMode(isStoryGameOver) {
   overlayOverTitleEl.textContent = 'Game Over';
   restartButton.textContent = 'Restart';
   overlayOver.classList.remove('is-story-gameover');
+  if (storyMainMenuButton) {
+    storyMainMenuButton.hidden = true;
+  }
   if (overlayOverEpisodeContextEl) {
     overlayOverEpisodeContextEl.hidden = true;
     overlayOverEpisodeContextEl.textContent = '';
@@ -1450,9 +1546,6 @@ function startStoryLineReveal() {
   setStorySceneCursor(runtime.sceneId, runtime.lineIndex);
   if (runtime.revealStage === 'done') {
     runtime.awaitingAdvance = true;
-    runtime.autoAdvanceTimer = setTimeout(() => {
-      advanceStorySceneLine();
-    }, tempo.holdMs);
     return;
   }
   runtime.revealTimer = setInterval(() => {
@@ -1472,9 +1565,6 @@ function startStoryLineReveal() {
       clearInterval(runtime.revealTimer);
       runtime.revealTimer = null;
       runtime.awaitingAdvance = true;
-      runtime.autoAdvanceTimer = setTimeout(() => {
-        advanceStorySceneLine();
-      }, tempo.holdMs);
     }
   }, tempo.charMs);
 }
@@ -1487,14 +1577,27 @@ function revealStoryLineInstant() {
   const scene = STORY_SCENES[runtime.sceneId];
   const topLine = scene.lines[runtime.lineIndex] || '';
   const bottomLine = scene.lines[runtime.lineIndex + 1] || '';
-  clearInterval(runtime.revealTimer);
-  runtime.revealTimer = null;
   runtime.topRevealTarget = Math.max(topLine.length, 0);
   runtime.bottomRevealTarget = Math.max(bottomLine.length, 0);
-  runtime.topRevealIndex = runtime.topRevealTarget;
-  runtime.bottomRevealIndex = runtime.bottomRevealTarget;
-  runtime.revealStage = 'done';
-  runtime.awaitingAdvance = true;
+  if (runtime.revealStage === 'top') {
+    runtime.topRevealIndex = runtime.topRevealTarget;
+    runtime.revealStage = runtime.bottomRevealTarget > 0 ? 'bottom' : 'done';
+    if (runtime.revealStage === 'done') {
+      clearInterval(runtime.revealTimer);
+      runtime.revealTimer = null;
+      runtime.awaitingAdvance = true;
+    }
+  } else if (runtime.revealStage === 'bottom') {
+    runtime.bottomRevealIndex = runtime.bottomRevealTarget;
+    runtime.revealStage = 'done';
+    clearInterval(runtime.revealTimer);
+    runtime.revealTimer = null;
+    runtime.awaitingAdvance = true;
+  } else {
+    runtime.topRevealIndex = runtime.topRevealTarget;
+    runtime.bottomRevealIndex = runtime.bottomRevealTarget;
+    runtime.awaitingAdvance = true;
+  }
   renderStoryLines(topLine, bottomLine, runtime.topRevealIndex, runtime.bottomRevealIndex);
 }
 
@@ -1626,6 +1729,7 @@ function playStoryScene(sceneId, onCompleteAction, options = {}) {
   setStoryEpisodeStartPromptVisible(false);
   clearStoryLines();
   setMode('story_cutscene');
+  measureStoryCardBounds();
   startStoryLineReveal();
 }
 
@@ -1753,6 +1857,7 @@ function renderPostcreditLines(sceneId = 'final_transmission') {
     .map((line) => `<p class="postcredit-line${isUnknownSignalLine(line) ? ' is-unknown' : ''}">${escapeHtml(line)}</p>`)
     .join('');
   postcreditScrollEl.innerHTML = `<div class="postcredit-loop">${linesMarkup}</div><div class="postcredit-loop" aria-hidden="true">${linesMarkup}</div>`;
+  postcreditScrollEl.style.transform = 'translate3d(0, 0, 0)';
   state.storyPostcreditLoopHeight = 0;
 }
 
@@ -1781,7 +1886,7 @@ function tickStoryPostcreditScroll(timestamp) {
     if (state.storyPostcreditScrollPos >= state.storyPostcreditLoopHeight) {
       state.storyPostcreditScrollPos -= state.storyPostcreditLoopHeight;
     }
-    postcreditScrollWrapEl.scrollTop = state.storyPostcreditScrollPos;
+    postcreditScrollEl.style.transform = `translate3d(0, -${state.storyPostcreditScrollPos.toFixed(3)}px, 0)`;
   }
 
   state.storyPostcreditLastTimestamp = timestamp;
@@ -1831,9 +1936,6 @@ function startStoryPostcredit(options = {}) {
   clearStoryPostcreditMotion();
   state.storyPostcreditScrollPos = 0;
   state.storyPostcreditLoopHeight = 0;
-  if (postcreditScrollWrapEl) {
-    postcreditScrollWrapEl.scrollTop = 0;
-  }
   setMode('story_postcredit');
   state.storyPostcreditRafId = requestAnimationFrame(tickStoryPostcreditScroll);
 }
@@ -1991,7 +2093,8 @@ function renderPerkTreeTooltipText(text) {
   if (!perkTreeTooltipEl) {
     return;
   }
-  perkTreeTooltipEl.textContent = TREE_TOOLTIP_DEFAULT;
+  const normalized = typeof text === 'string' ? text.trim() : '';
+  perkTreeTooltipEl.textContent = normalized || TREE_TOOLTIP_DEFAULT;
 }
 
 function treeNodeRadius(kind) {
@@ -2671,10 +2774,30 @@ function bindPerkTreeInteractions() {
     return;
   }
 
+  const clearTouchTooltipTimer = () => {
+    clearTimeout(perkTreeTouchTooltipTimeout);
+    perkTreeTouchTooltipTimeout = null;
+  };
+
+  const holdTooltipForTouch = (tooltip) => {
+    clearTouchTooltipTimer();
+    perkTreeTouchHoldUntil = performance.now() + STORY_PERK_TOOLTIP_TOUCH_MS;
+    renderPerkTreeTooltipText(tooltip);
+    perkTreeTouchTooltipTimeout = setTimeout(() => {
+      perkTreeTouchHoldUntil = 0;
+      renderPerkTreeTooltipText('');
+      perkTreeTouchTooltipTimeout = null;
+    }, STORY_PERK_TOOLTIP_TOUCH_MS);
+  };
+
   perkTreeCanvasEl.addEventListener('pointerover', (event) => {
     const node = perkTreeNodeFromTarget(event.target);
     if (!node) {
       return;
+    }
+    if (event.pointerType === 'mouse') {
+      clearTouchTooltipTimer();
+      perkTreeTouchHoldUntil = 0;
     }
     renderPerkTreeTooltipText(node.getAttribute('data-tooltip') || '');
   });
@@ -2692,12 +2815,18 @@ function bindPerkTreeInteractions() {
     if (!node) {
       return;
     }
+    if (performance.now() < perkTreeTouchHoldUntil) {
+      return;
+    }
     renderPerkTreeTooltipText('');
   });
 
   perkTreeCanvasEl.addEventListener('focusout', (event) => {
     const node = perkTreeNodeFromTarget(event.target);
     if (!node) {
+      return;
+    }
+    if (performance.now() < perkTreeTouchHoldUntil) {
       return;
     }
     renderPerkTreeTooltipText('');
@@ -2718,7 +2847,7 @@ function bindPerkTreeInteractions() {
     }
     lastPerkTreeTooltipAt = now;
     const tooltip = node.getAttribute('data-tooltip') || '';
-    renderPerkTreeTooltipText(tooltip);
+    holdTooltipForTouch(tooltip);
     showFeedback(tooltip, 920);
   });
 }
@@ -3741,6 +3870,17 @@ async function retryStoryEpisodeFromGameOver() {
   });
 }
 
+async function returnToMainMenuFromStoryGameOver() {
+  if (!(state.storySessionActive && state.mode === 'gameover')) {
+    return;
+  }
+  await submitScore();
+  finalizeNextRunLoadoutFromGameover();
+  endStorySession();
+  syncStoryStartButtons();
+  setMode('start');
+}
+
 function handleStoryOverlayAdvance() {
   if (state.mode === 'story_cutscene') {
     advanceStorySceneLine();
@@ -3762,6 +3902,9 @@ restartButton.addEventListener('click', async () => {
   }
   await submitScore();
   startGame();
+});
+storyMainMenuButton?.addEventListener('click', async () => {
+  await returnToMainMenuFromStoryGameOver();
 });
 document.addEventListener('keydown', handleAction);
 document.addEventListener('keydown', async (event) => {
@@ -3952,6 +4095,7 @@ perkTreeToggleButton?.addEventListener('click', () => {
 
 window.addEventListener('resize', () => {
   syncMobilePanels();
+  measureStoryCardBounds();
   positionPlayer();
   state.obstacles.forEach((obstacle) => {
     obstacle.el.style.top = `${laneTop(obstacle.lane)}px`;
