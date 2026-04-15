@@ -17,17 +17,22 @@ const pauseButton = document.getElementById('pause-button');
 const storyDebugNextButton = document.getElementById('story-debug-next-button');
 const playerNameEl = document.getElementById('player-name');
 const overlayOverTitleEl = document.getElementById('overlay-over-title');
+const overlayOverSubtitleEl = document.getElementById('overlay-over-subtitle');
+const overlayOverEpisodeContextEl = document.getElementById('overlay-over-story-episode');
 const overlayStory = document.getElementById('overlay-story');
 const storySceneLabelEl = document.getElementById('story-scene-label');
 const storySceneTitleEl = document.getElementById('story-scene-title');
-const storyLineTextEl = document.getElementById('story-line-text');
+const storyLineTopEl = document.getElementById('story-line-text-top');
+const storyLineBottomEl = document.getElementById('story-line-text-bottom');
+const storyReadyCopyEl = document.getElementById('story-ready-copy');
+const storyStartEpisodeButton = document.getElementById('story-start-episode-button');
 const storyAdvanceButton = document.getElementById('story-advance-button');
 const storySkipButton = document.getElementById('story-skip-button');
 const overlayPostcredit = document.getElementById('overlay-postcredit');
 const postcreditScrollWrapEl = document.getElementById('postcredit-scroll-wrap');
 const postcreditScrollEl = document.getElementById('postcredit-scroll');
 const postcreditCloseButton = document.getElementById('postcredit-close-button');
-const postcreditSkipButton = document.getElementById('postcredit-skip-button');
+const postcreditPauseButton = document.getElementById('postcredit-pause-button');
 const overlayLogs = document.getElementById('overlay-logs');
 const logsListEl = document.getElementById('logs-list');
 const logsCloseButton = document.getElementById('logs-close-button');
@@ -79,6 +84,7 @@ const STORY_PROGRESS_SCHEMA_VERSION = 1;
 const STORY_DEBUG_KEY = 'drift-story-debug-v01';
 const LEADERBOARD_LIMIT = 10;
 const UPGRADE_POINT_STEP = 20;
+const STORY_UPGRADE_POINT_STEP = 10;
 const UPGRADE_SCRAP_PER_STEP = 1;
 const MAX_UPGRADE_LEVEL = 6;
 const BASE_SPEED = 156;
@@ -107,6 +113,7 @@ const LAST_SIGNAL_STASIS_SPEED_MULTIPLIER = 0.58;
 const LAST_SIGNAL_STASIS_SPAWN_DELAY_MULTIPLIER = 1.32;
 const LAST_SIGNAL_POST_TRIGGER_GRACE = 0.5;
 const LAST_SIGNAL_TRIGGER_SCORE_BONUS = 1.5;
+const STORY_POSTCREDIT_SCROLL_SPEED = 12.5;
 const MAX_FAMILY_PERK_LEVEL = 3;
 const FAMILY_IDS = Object.freeze({
   tempo: 'tempo',
@@ -255,13 +262,13 @@ const STORY_SCENE_ORDER = Object.freeze([
 ]);
 
 const STORY_CUTSCENE_TEMPO = Object.freeze({
-  episode_1: { charMs: 23, holdMs: 1350 },
-  episode_2: { charMs: 21, holdMs: 1250 },
-  episode_3: { charMs: 18, holdMs: 1140 },
-  episode_4: { charMs: 15, holdMs: 1040 },
-  episode_5: { charMs: 13, holdMs: 980 },
-  final_witness: { charMs: 12, holdMs: 920 },
-  final_transmission: { charMs: 11, holdMs: 860 }
+  episode_1: { charMs: 28, holdMs: 1620 },
+  episode_2: { charMs: 25, holdMs: 1500 },
+  episode_3: { charMs: 22, holdMs: 1368 },
+  episode_4: { charMs: 18, holdMs: 1248 },
+  episode_5: { charMs: 16, holdMs: 1176 },
+  final_witness: { charMs: 14, holdMs: 1104 },
+  final_transmission: { charMs: 13, holdMs: 1032 }
 });
 
 const STORY_SCENES = Object.freeze({
@@ -982,8 +989,12 @@ const state = {
   story: initialStoryProgress,
   storySessionActive: false,
   storyCutsceneRuntime: null,
-  storyPostcreditTimer: null,
+  storyPostcreditRafId: null,
+  storyPostcreditLastTimestamp: 0,
+  storyPostcreditScrollPos: 0,
+  storyPostcreditLoopHeight: 0,
   storyPostcreditFromLogs: false,
+  storyPostcreditPaused: false,
   storyEpisodeProgress: {
     episodeIndex: null,
     targetEvent: null,
@@ -1068,7 +1079,9 @@ function syncStoryDebugControls() {
   }
   if (state.storyCutsceneRuntime && state.storyDebugEnabled) {
     state.storyCutsceneRuntime.canSkip = true;
-    storySkipButton.hidden = false;
+    if (!state.storyCutsceneRuntime.awaitingEpisodeStart) {
+      storySkipButton.hidden = false;
+    }
   }
 }
 
@@ -1096,16 +1109,25 @@ function clearStoryCutsceneTimers() {
   clearTimeout(state.storyCutsceneRuntime.autoAdvanceTimer);
 }
 
-function clearStoryPostcreditTimer() {
-  clearInterval(state.storyPostcreditTimer);
-  state.storyPostcreditTimer = null;
+function clearStoryPostcreditMotion() {
+  cancelAnimationFrame(state.storyPostcreditRafId);
+  state.storyPostcreditRafId = null;
+  state.storyPostcreditLastTimestamp = 0;
+  state.storyPostcreditScrollPos = 0;
+  state.storyPostcreditLoopHeight = 0;
 }
 
 function resetStoryRuntimeState() {
   clearStoryCutsceneTimers();
-  clearStoryPostcreditTimer();
+  clearStoryPostcreditMotion();
   state.storyCutsceneRuntime = null;
   state.storyPostcreditFromLogs = false;
+  state.storyPostcreditPaused = false;
+  if (postcreditPauseButton) {
+    postcreditPauseButton.textContent = 'Pause';
+  }
+  setStoryEpisodeStartPromptVisible(false);
+  clearStoryLines();
   state.storyEpisodeProgress = {
     episodeIndex: null,
     targetEvent: null,
@@ -1137,10 +1159,16 @@ function syncStoryCinematicFrame() {
     const sceneId = state.storyCutsceneRuntime.sceneId;
     const scene = STORY_SCENES[sceneId];
     const totalLines = Math.max(1, scene?.lines?.length || 1);
-    const currentLine = scene?.lines?.[state.storyCutsceneRuntime.lineIndex] || '';
-    const lineReveal = Math.max(1, currentLine.length);
+    const currentTopLine = scene?.lines?.[state.storyCutsceneRuntime.lineIndex] || '';
+    const currentBottomLine = scene?.lines?.[state.storyCutsceneRuntime.lineIndex + 1] || '';
+    const pairRevealTarget = Math.max(1, currentTopLine.length + currentBottomLine.length);
+    const pairRevealProgress = clamp(
+      (state.storyCutsceneRuntime.topRevealIndex || 0) + (state.storyCutsceneRuntime.bottomRevealIndex || 0),
+      0,
+      pairRevealTarget
+    );
     const sceneProgress = clamp(
-      (state.storyCutsceneRuntime.lineIndex + (state.storyCutsceneRuntime.revealIndex / lineReveal)) / totalLines,
+      (state.storyCutsceneRuntime.lineIndex + ((pairRevealProgress / pairRevealTarget) * 2)) / totalLines,
       0,
       1
     );
@@ -1302,38 +1330,90 @@ function updateOverlayOverCopyForMode(isStoryGameOver) {
   if (!overlayOverTitleEl) {
     return;
   }
+  if (overlayOverSubtitleEl) {
+    overlayOverSubtitleEl.hidden = false;
+  }
   if (isStoryGameOver) {
+    const episode = Number.isInteger(state.story.currentEpisodeIndex)
+      ? STORY_EPISODES[state.story.currentEpisodeIndex]
+      : null;
     overlayOverTitleEl.textContent = 'Episode Failed';
     restartButton.textContent = 'Retry Episode';
     overlayOver.classList.add('is-story-gameover');
+    if (overlayOverEpisodeContextEl) {
+      overlayOverEpisodeContextEl.hidden = false;
+      overlayOverEpisodeContextEl.textContent = episode
+        ? `Episode ${state.story.currentEpisodeIndex + 1}: ${episode.title}`
+        : 'Story Episode';
+    }
     return;
   }
   overlayOverTitleEl.textContent = 'Game Over';
   restartButton.textContent = 'Restart';
   overlayOver.classList.remove('is-story-gameover');
+  if (overlayOverEpisodeContextEl) {
+    overlayOverEpisodeContextEl.hidden = true;
+    overlayOverEpisodeContextEl.textContent = '';
+  }
+}
+
+function setStoryEpisodeStartPromptVisible(visible) {
+  if (storyReadyCopyEl) {
+    storyReadyCopyEl.hidden = !visible;
+  }
+  if (storyStartEpisodeButton) {
+    storyStartEpisodeButton.hidden = !visible;
+  }
+  if (storyAdvanceButton) {
+    storyAdvanceButton.hidden = visible;
+  }
+  if (storySkipButton && visible) {
+    storySkipButton.hidden = true;
+  }
 }
 
 function clearStoryLines() {
-  storyLineTextEl.textContent = '';
-  storyLineTextEl.classList.remove('is-unknown');
+  if (storyLineTopEl) {
+    storyLineTopEl.textContent = '';
+    storyLineTopEl.classList.remove('is-unknown');
+  }
+  if (storyLineBottomEl) {
+    storyLineBottomEl.textContent = '';
+    storyLineBottomEl.classList.remove('is-unknown');
+  }
 }
 
 function isUnknownSignalLine(line) {
   return typeof line === 'string' && line.startsWith('[UNKNOWN_SIGNAL]');
 }
 
-function renderStoryLine(line, visibleChars = line.length) {
+function renderStoryLineToElement(element, line, visibleChars = line.length) {
+  if (!element) {
+    return;
+  }
   const safeLine = String(line || '');
   const sliced = safeLine.slice(0, Math.max(0, Math.min(safeLine.length, visibleChars)));
-  storyLineTextEl.textContent = sliced;
-  storyLineTextEl.classList.toggle('is-unknown', isUnknownSignalLine(safeLine));
+  element.textContent = sliced;
+  element.classList.toggle('is-unknown', isUnknownSignalLine(safeLine));
+}
+
+function renderStoryLines(
+  topLine,
+  bottomLine,
+  topVisibleChars = String(topLine || '').length,
+  bottomVisibleChars = String(bottomLine || '').length
+) {
+  renderStoryLineToElement(storyLineTopEl, topLine, topVisibleChars);
+  renderStoryLineToElement(storyLineBottomEl, bottomLine, bottomVisibleChars);
   syncStoryCinematicFrame();
 }
 
 function setStorySceneCursor(sceneId, lineIndex) {
+  const normalizedLineIndex = Math.max(0, Math.floor(Number(lineIndex) || 0));
+  const pairStartIndex = normalizedLineIndex - (normalizedLineIndex % 2);
   state.story.currentSceneCursor = {
     sceneId,
-    lineIndex
+    lineIndex: pairStartIndex
   };
   persistStoryProgress();
 }
@@ -1354,16 +1434,41 @@ function startStoryLineReveal() {
   }
   clearStoryCutsceneTimers();
   const scene = STORY_SCENES[runtime.sceneId];
-  const line = scene.lines[runtime.lineIndex] || '';
+  const topLine = scene.lines[runtime.lineIndex] || '';
+  const bottomLine = scene.lines[runtime.lineIndex + 1] || '';
   const tempo = currentSceneTempo(runtime.sceneId);
-  runtime.revealIndex = 0;
+  runtime.topRevealTarget = Math.max(topLine.length, 0);
+  runtime.bottomRevealTarget = Math.max(bottomLine.length, 0);
+  runtime.topRevealIndex = 0;
+  runtime.bottomRevealIndex = 0;
+  runtime.revealStage = runtime.topRevealTarget > 0
+    ? 'top'
+    : (runtime.bottomRevealTarget > 0 ? 'bottom' : 'done');
   runtime.awaitingAdvance = false;
-  renderStoryLine(line, 0);
+  runtime.awaitingEpisodeStart = false;
+  renderStoryLines(topLine, bottomLine, 0, 0);
   setStorySceneCursor(runtime.sceneId, runtime.lineIndex);
+  if (runtime.revealStage === 'done') {
+    runtime.awaitingAdvance = true;
+    runtime.autoAdvanceTimer = setTimeout(() => {
+      advanceStorySceneLine();
+    }, tempo.holdMs);
+    return;
+  }
   runtime.revealTimer = setInterval(() => {
-    runtime.revealIndex += 1;
-    renderStoryLine(line, runtime.revealIndex);
-    if (runtime.revealIndex >= line.length) {
+    if (runtime.revealStage === 'top') {
+      runtime.topRevealIndex = Math.min(runtime.topRevealTarget, runtime.topRevealIndex + 1);
+      if (runtime.topRevealIndex >= runtime.topRevealTarget) {
+        runtime.revealStage = runtime.bottomRevealTarget > 0 ? 'bottom' : 'done';
+      }
+    } else if (runtime.revealStage === 'bottom') {
+      runtime.bottomRevealIndex = Math.min(runtime.bottomRevealTarget, runtime.bottomRevealIndex + 1);
+      if (runtime.bottomRevealIndex >= runtime.bottomRevealTarget) {
+        runtime.revealStage = 'done';
+      }
+    }
+    renderStoryLines(topLine, bottomLine, runtime.topRevealIndex, runtime.bottomRevealIndex);
+    if (runtime.revealStage === 'done') {
       clearInterval(runtime.revealTimer);
       runtime.revealTimer = null;
       runtime.awaitingAdvance = true;
@@ -1380,12 +1485,40 @@ function revealStoryLineInstant() {
     return;
   }
   const scene = STORY_SCENES[runtime.sceneId];
-  const line = scene.lines[runtime.lineIndex] || '';
+  const topLine = scene.lines[runtime.lineIndex] || '';
+  const bottomLine = scene.lines[runtime.lineIndex + 1] || '';
   clearInterval(runtime.revealTimer);
   runtime.revealTimer = null;
-  runtime.revealIndex = line.length;
+  runtime.topRevealTarget = Math.max(topLine.length, 0);
+  runtime.bottomRevealTarget = Math.max(bottomLine.length, 0);
+  runtime.topRevealIndex = runtime.topRevealTarget;
+  runtime.bottomRevealIndex = runtime.bottomRevealTarget;
+  runtime.revealStage = 'done';
   runtime.awaitingAdvance = true;
-  renderStoryLine(line, line.length);
+  renderStoryLines(topLine, bottomLine, runtime.topRevealIndex, runtime.bottomRevealIndex);
+}
+
+function enterStoryEpisodeStartPrompt() {
+  const runtime = state.storyCutsceneRuntime;
+  if (!runtime || runtime.onCompleteAction !== 'start_episode') {
+    return;
+  }
+  clearStoryCutsceneTimers();
+  runtime.awaitingAdvance = false;
+  runtime.awaitingEpisodeStart = true;
+  markStorySceneSeen(runtime.sceneId);
+  clearStorySceneCursor();
+  setStoryEpisodeStartPromptVisible(true);
+}
+
+function startStoryEpisodeFromPrompt() {
+  const runtime = state.storyCutsceneRuntime;
+  if (!runtime || !runtime.awaitingEpisodeStart || runtime.onCompleteAction !== 'start_episode') {
+    return;
+  }
+  state.storyCutsceneRuntime = null;
+  setStoryEpisodeStartPromptVisible(false);
+  beginStoryEpisodeGameplay(state.story.currentEpisodeIndex);
 }
 
 function completeStoryScene({ wasSkipped = false } = {}) {
@@ -1395,13 +1528,15 @@ function completeStoryScene({ wasSkipped = false } = {}) {
   }
   clearStoryCutsceneTimers();
   const sceneId = runtime.sceneId;
+  const scene = STORY_SCENES[sceneId];
   const action = runtime.onCompleteAction;
-  const sawEntireScene = runtime.lineIndex >= (STORY_SCENES[sceneId]?.lines.length || 0) - 1 && !wasSkipped;
+  const sawEntireScene = runtime.lineIndex >= Math.max(0, (scene?.lines.length || 0) - 2) && !wasSkipped;
   if (sawEntireScene || !wasSkipped) {
     markStorySceneSeen(sceneId);
   }
   clearStorySceneCursor();
   state.storyCutsceneRuntime = null;
+  setStoryEpisodeStartPromptVisible(false);
   if (action === 'start_episode') {
     beginStoryEpisodeGameplay(state.story.currentEpisodeIndex);
     return;
@@ -1422,6 +1557,9 @@ function advanceStorySceneLine() {
   if (!runtime) {
     return;
   }
+  if (runtime.awaitingEpisodeStart) {
+    return;
+  }
   const scene = STORY_SCENES[runtime.sceneId];
   if (!scene) {
     return;
@@ -1432,8 +1570,12 @@ function advanceStorySceneLine() {
     revealStoryLineInstant();
     return;
   }
-  runtime.lineIndex += 1;
+  runtime.lineIndex += 2;
   if (runtime.lineIndex >= scene.lines.length) {
+    if (runtime.onCompleteAction === 'start_episode') {
+      enterStoryEpisodeStartPrompt();
+      return;
+    }
     completeStoryScene();
     return;
   }
@@ -1456,11 +1598,18 @@ function playStoryScene(sceneId, onCompleteAction, options = {}) {
   unlockStoryScene(sceneId);
   const canSkip = options.canSkip ?? (hasSeenStoryScene(sceneId) || state.storyDebugEnabled);
   const initialLine = Number.isInteger(options.startLineIndex) ? options.startLineIndex : 0;
+  const normalizedLineIndex = Math.max(0, Math.min(scene.lines.length - 1, initialLine));
+  const pairStartLineIndex = normalizedLineIndex - (normalizedLineIndex % 2);
   state.storyCutsceneRuntime = {
     sceneId,
-    lineIndex: Math.max(0, Math.min(scene.lines.length - 1, initialLine)),
-    revealIndex: 0,
+    lineIndex: pairStartLineIndex,
+    topRevealIndex: 0,
+    topRevealTarget: 0,
+    bottomRevealIndex: 0,
+    bottomRevealTarget: 0,
+    revealStage: 'top',
     awaitingAdvance: false,
+    awaitingEpisodeStart: false,
     revealTimer: null,
     autoAdvanceTimer: null,
     canSkip,
@@ -1471,6 +1620,10 @@ function playStoryScene(sceneId, onCompleteAction, options = {}) {
   storySceneLabelEl.textContent = scene.label;
   storySceneTitleEl.textContent = scene.title;
   storySkipButton.hidden = !canSkip;
+  if (storyAdvanceButton) {
+    storyAdvanceButton.hidden = false;
+  }
+  setStoryEpisodeStartPromptVisible(false);
   clearStoryLines();
   setMode('story_cutscene');
   startStoryLineReveal();
@@ -1484,7 +1637,6 @@ function beginStoryEpisodeGameplay(episodeIndex) {
   beginStorySession();
   state.story.currentEpisodeIndex = episodeIndex;
   persistStoryProgress();
-  commitPerkTreeProgressForSelectedPerk();
   resetGame();
   state.storyEpisodeProgress = {
     episodeIndex,
@@ -1594,57 +1746,96 @@ function renderLogsList() {
 function renderPostcreditLines(sceneId = 'final_transmission') {
   const scene = STORY_SCENES[sceneId];
   if (!scene || !postcreditScrollEl) {
+    state.storyPostcreditLoopHeight = 0;
     return;
   }
-  postcreditScrollEl.innerHTML = scene.lines
+  const linesMarkup = scene.lines
     .map((line) => `<p class="postcredit-line${isUnknownSignalLine(line) ? ' is-unknown' : ''}">${escapeHtml(line)}</p>`)
     .join('');
+  postcreditScrollEl.innerHTML = `<div class="postcredit-loop">${linesMarkup}</div><div class="postcredit-loop" aria-hidden="true">${linesMarkup}</div>`;
+  state.storyPostcreditLoopHeight = 0;
+}
+
+function tickStoryPostcreditScroll(timestamp) {
+  if (state.mode !== 'story_postcredit') {
+    clearStoryPostcreditMotion();
+    return;
+  }
+  if (!postcreditScrollWrapEl || !postcreditScrollEl) {
+    state.storyPostcreditRafId = requestAnimationFrame(tickStoryPostcreditScroll);
+    return;
+  }
+
+  if (!state.storyPostcreditLastTimestamp) {
+    state.storyPostcreditLastTimestamp = timestamp;
+  }
+
+  if (!state.storyPostcreditPaused) {
+    const deltaSeconds = clamp((timestamp - state.storyPostcreditLastTimestamp) / 1000, 0, 0.1);
+    if (state.storyPostcreditLoopHeight <= 0) {
+      const firstLoopEl = postcreditScrollEl.querySelector('.postcredit-loop');
+      const measuredLoopHeight = firstLoopEl ? firstLoopEl.getBoundingClientRect().height : 0;
+      state.storyPostcreditLoopHeight = Math.max(1, measuredLoopHeight);
+    }
+    state.storyPostcreditScrollPos += deltaSeconds * STORY_POSTCREDIT_SCROLL_SPEED;
+    if (state.storyPostcreditScrollPos >= state.storyPostcreditLoopHeight) {
+      state.storyPostcreditScrollPos -= state.storyPostcreditLoopHeight;
+    }
+    postcreditScrollWrapEl.scrollTop = state.storyPostcreditScrollPos;
+  }
+
+  state.storyPostcreditLastTimestamp = timestamp;
+  state.storyPostcreditRafId = requestAnimationFrame(tickStoryPostcreditScroll);
 }
 
 function finishStoryPostcredit() {
-  clearStoryPostcreditTimer();
-  if (state.storyPostcreditFromLogs) {
-    state.storyPostcreditFromLogs = false;
-    openLogsOverlay();
-    return;
+  clearStoryPostcreditMotion();
+  state.storyPostcreditFromLogs = false;
+  state.storyPostcreditPaused = false;
+  if (postcreditPauseButton) {
+    postcreditPauseButton.textContent = 'Pause';
   }
-  markStorySceneSeen('final_transmission');
-  state.story.campaignComplete = true;
-  persistStoryProgress();
-  syncStoryStartButtons();
   endStorySession();
   setMode('start');
 }
 
+function toggleStoryPostcreditPause() {
+  if (state.mode !== 'story_postcredit') {
+    return;
+  }
+  state.storyPostcreditPaused = !state.storyPostcreditPaused;
+  state.storyPostcreditLastTimestamp = 0;
+  if (postcreditPauseButton) {
+    postcreditPauseButton.textContent = state.storyPostcreditPaused ? 'Resume' : 'Pause';
+  }
+}
+
 function startStoryPostcredit(options = {}) {
   const fromLogs = Boolean(options.fromLogs);
-  if (!fromLogs) {
-    beginStorySession();
-  }
+  beginStorySession();
   state.storyPostcreditFromLogs = fromLogs;
+  state.storyPostcreditPaused = false;
   unlockStoryScene('final_transmission');
+  if (!fromLogs) {
+    markStorySceneSeen('final_transmission');
+    state.story.campaignComplete = true;
+    persistStoryProgress();
+    syncStoryStartButtons();
+  }
   renderPostcreditLines('final_transmission');
-  const canSkipPostcredit = hasSeenStoryScene('final_transmission') || fromLogs;
-  postcreditSkipButton.hidden = !canSkipPostcredit;
-  postcreditCloseButton.hidden = !canSkipPostcredit;
+  postcreditCloseButton.hidden = false;
+  if (postcreditPauseButton) {
+    postcreditPauseButton.hidden = false;
+    postcreditPauseButton.textContent = 'Pause';
+  }
+  clearStoryPostcreditMotion();
+  state.storyPostcreditScrollPos = 0;
+  state.storyPostcreditLoopHeight = 0;
   if (postcreditScrollWrapEl) {
     postcreditScrollWrapEl.scrollTop = 0;
   }
-  clearStoryPostcreditTimer();
   setMode('story_postcredit');
-  state.storyPostcreditTimer = setInterval(() => {
-    if (!postcreditScrollWrapEl) {
-      return;
-    }
-    postcreditScrollWrapEl.scrollTop += 0.8;
-    const maxScroll = postcreditScrollWrapEl.scrollHeight - postcreditScrollWrapEl.clientHeight;
-    if (postcreditScrollWrapEl.scrollTop >= maxScroll - 2) {
-      clearStoryPostcreditTimer();
-      if (!fromLogs) {
-        finishStoryPostcredit();
-      }
-    }
-  }, 16);
+  state.storyPostcreditRafId = requestAnimationFrame(tickStoryPostcreditScroll);
 }
 
 function startStoryMode({ continueCampaign = false } = {}) {
@@ -1897,7 +2088,7 @@ function syncFamilyAuraState() {
 }
 
 function commitPerkTreeProgressForSelectedPerk() {
-  if (state.perkProgressCommittedForGameover || state.mode !== 'gameover') {
+  if (state.perkProgressCommittedForGameover) {
     return;
   }
   const perk = selectedPerk();
@@ -1917,6 +2108,16 @@ function commitPerkTreeProgressForSelectedPerk() {
   state.perkProgressCommittedForGameover = true;
   renderPerkTree();
   syncFamilyAuraState();
+}
+
+function finalizeNextRunLoadoutFromGameover() {
+  if (state.mode !== 'gameover') {
+    return;
+  }
+  if (!state.perkProgressCommittedForGameover) {
+    commitPerkTreeProgressForSelectedPerk();
+  }
+  applySelectedPerk();
 }
 
 function activePerkTooltipText() {
@@ -2069,8 +2270,12 @@ function resetProgressionUi() {
   renderPerkTree();
 }
 
-function scrapEarnedFromScore(score) {
-  const steps = Math.max(0, Math.floor(score / UPGRADE_POINT_STEP));
+function scrapEarnedFromScore(score, options = {}) {
+  const storyMode = Object.prototype.hasOwnProperty.call(options, 'storyMode')
+    ? Boolean(options.storyMode)
+    : state.storySessionActive;
+  const scoreStep = storyMode ? STORY_UPGRADE_POINT_STEP : UPGRADE_POINT_STEP;
+  const steps = Math.max(0, Math.floor(score / scoreStep));
   return steps * UPGRADE_SCRAP_PER_STEP;
 }
 
@@ -2086,7 +2291,11 @@ function upgradeCost(type) {
 }
 
 function canPurchase(type) {
-  const canBuyBetweenRuns = state.mode === 'start' || state.mode === 'gameover' || state.mode === 'story_logs';
+  const canBuyBetweenRuns =
+    state.mode === 'start' ||
+    state.mode === 'gameover' ||
+    state.mode === 'story_logs' ||
+    state.mode === 'story_cutscene';
   if (!canBuyBetweenRuns) {
     return false;
   }
@@ -2104,7 +2313,8 @@ function renderUpgrades() {
     upgradesSubcopyEl.textContent = state.storySessionActive ? 'Story Loadout' : 'Permanent';
   }
   if (upgradeStatusEl) {
-    upgradeStatusEl.textContent = `Earn ${UPGRADE_SCRAP_PER_STEP} scrap every ${UPGRADE_POINT_STEP} score`;
+    const scoreStep = state.storySessionActive ? STORY_UPGRADE_POINT_STEP : UPGRADE_POINT_STEP;
+    upgradeStatusEl.textContent = `Earn ${UPGRADE_SCRAP_PER_STEP} scrap every ${scoreStep} score`;
   }
   upgradePointsEl.textContent = String(state.upgrades.points);
   UPGRADE_DEFS.forEach((upgrade) => {
@@ -2204,9 +2414,9 @@ function resetGame() {
 }
 
 function startGame() {
+  finalizeNextRunLoadoutFromGameover();
   endStorySession();
   syncStoryStartButtons();
-  commitPerkTreeProgressForSelectedPerk();
   resetGame();
   state.countdown = 3;
   state.nextGameplayMode = 'playing';
@@ -2225,7 +2435,7 @@ function gameOver() {
   }
   finalScoreEl.textContent = state.score.toFixed(1);
   if (runScrapEarnedEl) {
-    runScrapEarnedEl.textContent = String(scrapEarnedFromScore(state.score));
+    runScrapEarnedEl.textContent = String(scrapEarnedFromScore(state.score, { storyMode: wasStoryRun }));
   }
   if (state.score > state.best) {
     state.best = state.score;
@@ -2243,7 +2453,7 @@ function gameOver() {
     }, 80);
     window.setTimeout(() => playerNameEl.focus(), 80);
   }
-  const earnedPoints = scrapEarnedFromScore(state.score);
+  const earnedPoints = scrapEarnedFromScore(state.score, { storyMode: wasStoryRun });
   if (earnedPoints > 0) {
     state.upgrades.points += earnedPoints;
     persistUpgrades();
@@ -3524,6 +3734,7 @@ function handleAction(event) {
 
 async function retryStoryEpisodeFromGameOver() {
   await submitScore();
+  finalizeNextRunLoadoutFromGameover();
   const currentEpisodeScene = storySceneForEpisode(state.story.currentEpisodeIndex);
   playStoryScene(currentEpisodeScene, 'start_episode', {
     canSkip: hasSeenStoryScene(currentEpisodeScene) || state.storyDebugEnabled
@@ -3536,10 +3747,7 @@ function handleStoryOverlayAdvance() {
     return true;
   }
   if (state.mode === 'story_postcredit') {
-    if (!postcreditCloseButton.hidden || !postcreditSkipButton.hidden) {
-      finishStoryPostcredit();
-    }
-    return true;
+    return false;
   }
   return false;
 }
@@ -3692,6 +3900,9 @@ logsCloseButton?.addEventListener('click', () => {
 storyAdvanceButton?.addEventListener('click', () => {
   advanceStorySceneLine();
 });
+storyStartEpisodeButton?.addEventListener('click', () => {
+  startStoryEpisodeFromPrompt();
+});
 storySkipButton?.addEventListener('click', () => {
   skipStoryScene();
 });
@@ -3707,8 +3918,8 @@ overlayStory?.addEventListener('pointerdown', (event) => {
 postcreditCloseButton?.addEventListener('click', () => {
   finishStoryPostcredit();
 });
-postcreditSkipButton?.addEventListener('click', () => {
-  finishStoryPostcredit();
+postcreditPauseButton?.addEventListener('click', () => {
+  toggleStoryPostcreditPause();
 });
 storyDebugNextButton?.addEventListener('click', () => {
   debugCompleteCurrentStoryEpisode();

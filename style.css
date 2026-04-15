@@ -4,6 +4,11 @@
   --soft: rgba(21, 21, 21, 0.08);
   --line: rgba(21, 21, 21, 0.16);
   --lane: rgba(21, 21, 21, 0.04);
+  --story-bg: #05070c;
+  --story-bg-soft: #0a0f18;
+  --story-cream: var(--bg);
+  --story-line: rgba(247, 244, 237, 0.3);
+  --story-ink: #111317;
 }
 
 * {
@@ -38,8 +43,7 @@ body.is-story-mode .layout {
 }
 
 body.is-story-cutscene .upgrades {
-  opacity: 0.44;
-  pointer-events: none;
+  opacity: 0.96;
 }
 
 button {
@@ -913,6 +917,12 @@ button {
   padding-bottom: 24px;
 }
 
+#overlay-over-subtitle,
+#overlay-over-story-episode {
+  max-width: none;
+  margin: 0;
+}
+
 #overlay-over.is-story-gameover .name-field,
 #overlay-over.is-story-gameover #save-score-button {
   display: none;
@@ -920,6 +930,38 @@ button {
 
 #overlay-over.is-story-gameover .panel-stack {
   margin-top: 0;
+}
+
+#overlay-over.is-story-gameover {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(247, 244, 237, 0.08), transparent 50%),
+    linear-gradient(180deg, rgba(6, 9, 15, 0.98), rgba(2, 4, 8, 0.99));
+  color: var(--story-cream);
+  border: 1px solid var(--story-line);
+}
+
+#overlay-over.is-story-gameover h2,
+#overlay-over.is-story-gameover p,
+#overlay-over.is-story-gameover h3,
+#overlay-over.is-story-gameover .panel-value {
+  color: var(--story-cream);
+  opacity: 1;
+}
+
+#overlay-over.is-story-gameover .panel-card {
+  background: linear-gradient(180deg, rgba(9, 14, 23, 0.94), rgba(5, 8, 15, 0.96));
+  border-color: rgba(247, 244, 237, 0.2);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.4);
+}
+
+#overlay-over.is-story-gameover .perk-choice {
+  background: rgba(12, 18, 30, 0.9);
+  border-color: rgba(247, 244, 237, 0.26);
+  color: var(--story-cream);
+}
+
+#overlay-over.is-story-gameover .perk-choice span {
+  color: rgba(247, 244, 237, 0.84);
 }
 
 #overlay-story,
@@ -930,37 +972,73 @@ button {
   text-align: left;
 }
 
+#overlay-story,
+#overlay-postcredit {
+  background:
+    radial-gradient(circle at 14% 20%, rgba(247, 244, 237, 0.06), transparent 56%),
+    linear-gradient(180deg, rgba(7, 11, 20, 0.97), rgba(3, 6, 12, 0.98));
+  color: var(--story-cream);
+  border: 1px solid var(--story-line);
+}
+
+#overlay-story h2,
+#overlay-postcredit h2,
+#overlay-story p,
+#overlay-postcredit p {
+  color: var(--story-cream);
+  opacity: 1;
+}
+
+#overlay-story .hint,
+#overlay-postcredit .hint {
+  color: rgba(247, 244, 237, 0.78);
+  opacity: 1;
+}
+
 .story-scene-label {
   font-size: 0.74rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  opacity: 0.72;
+  color: rgba(247, 244, 237, 0.82);
+  opacity: 1;
 }
 
 .story-line-card {
   margin-top: 10px;
-  border: 1px solid rgba(21, 21, 21, 0.2);
+  border: 1px solid rgba(247, 244, 237, 0.22);
   border-radius: 16px;
-  min-height: 140px;
+  min-height: 172px;
   padding: 14px 16px;
+  display: grid;
+  gap: 10px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.12)),
-    radial-gradient(circle at 14% 8%, rgba(134, 197, 255, 0.18), transparent 68%);
-  box-shadow: inset 0 0 40px rgba(8, 20, 31, 0.08);
+    linear-gradient(180deg, rgba(12, 18, 30, 0.94), rgba(6, 10, 17, 0.97)),
+    radial-gradient(circle at 12% 12%, rgba(247, 244, 237, 0.09), transparent 68%);
+  box-shadow: inset 0 0 34px rgba(0, 0, 0, 0.52);
 }
 
 .story-line-text {
   margin: 0;
   max-width: none;
-  font-size: clamp(0.94rem, 1.9vw, 1.08rem);
-  line-height: 1.6;
-  opacity: 0.95;
+  font-size: clamp(0.96rem, 1.9vw, 1.1rem);
+  line-height: 1.52;
+  color: var(--story-cream);
+  opacity: 1;
   white-space: pre-wrap;
-  min-height: 5.8em;
+  min-height: 2.9em;
 }
 
 .story-line-text.is-unknown {
   font-style: italic;
+}
+
+.story-ready-copy {
+  margin-top: 10px;
+  margin-bottom: 0;
+  color: rgba(247, 244, 237, 0.9);
+  font-size: 0.96rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .story-controls {
@@ -1003,9 +1081,9 @@ button {
 
 .postcredit-scroll-wrap {
   margin-top: 10px;
-  border: 1px solid rgba(21, 21, 21, 0.2);
+  border: 1px solid rgba(247, 244, 237, 0.24);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.3);
+  background: linear-gradient(180deg, rgba(8, 12, 21, 0.92), rgba(5, 8, 14, 0.96));
   min-height: 52vh;
   max-height: 60vh;
   overflow-y: auto;
@@ -1026,10 +1104,55 @@ button {
 
 .postcredit-line {
   margin: 0 0 10px;
+  color: var(--story-cream);
 }
 
 .postcredit-line.is-unknown {
   font-style: italic;
+}
+
+.story-episode-context {
+  margin-top: 4px;
+  margin-bottom: 0;
+  font-size: 0.86rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(247, 244, 237, 0.88);
+  opacity: 1;
+}
+
+#overlay-story .button,
+#overlay-postcredit .button,
+#overlay-over.is-story-gameover .button {
+  background: var(--story-cream);
+  color: var(--story-ink);
+  border-color: rgba(247, 244, 237, 0.88);
+}
+
+#overlay-story .button:hover,
+#overlay-postcredit .button:hover,
+#overlay-over.is-story-gameover .button:hover {
+  background: rgba(247, 244, 237, 0.92);
+}
+
+#overlay-story .button-secondary,
+#overlay-postcredit .button-secondary,
+#overlay-over.is-story-gameover .button-secondary {
+  background: transparent;
+  color: var(--story-cream);
+  border-color: rgba(247, 244, 237, 0.56);
+}
+
+#overlay-story .button-secondary:hover,
+#overlay-postcredit .button-secondary:hover,
+#overlay-over.is-story-gameover .button-secondary:hover {
+  background: rgba(247, 244, 237, 0.11);
+}
+
+#overlay-story .button:focus-visible,
+#overlay-postcredit .button:focus-visible,
+#overlay-over.is-story-gameover .button:focus-visible {
+  outline: 2px solid rgba(247, 244, 237, 0.42);
 }
 
 .game-frame.story-cinematic::before,
@@ -1038,9 +1161,8 @@ button {
 }
 
 .game-frame.story-cinematic::before {
-  opacity: clamp(0.22, calc(0.28 + var(--story-crescendo) * 0.54 - var(--story-hope) * 0.18), 0.9);
-  animation: story-static 980ms linear infinite;
-  mix-blend-mode: screen;
+  opacity: clamp(0.24, calc(0.32 + var(--story-crescendo) * 0.36 - var(--story-hope) * 0.16), 0.82);
+  mix-blend-mode: soft-light;
   background:
     radial-gradient(circle at 12% 22%, rgba(153, 205, 255, 0.24), rgba(88, 146, 214, 0.06) 36%, rgba(8, 14, 24, 0.02) 70%),
     linear-gradient(122deg, rgba(255, 255, 255, 0.02), rgba(121, 172, 231, 0.28), rgba(255, 255, 255, 0.06)),
@@ -1049,145 +1171,118 @@ button {
 }
 
 .game-frame.story-cinematic::after {
-  opacity: clamp(0.2, calc(0.3 + var(--story-crescendo) * 0.58 - var(--story-hope) * 0.28), 0.92);
+  opacity: clamp(0.26, calc(0.34 + var(--story-crescendo) * 0.5 - var(--story-hope) * 0.2), 0.9);
   background:
     radial-gradient(circle at 64% 78%, rgba(3, 7, 15, 0.06), rgba(3, 7, 15, 0.44) 52%, rgba(0, 0, 0, 0.66) 100%),
     linear-gradient(148deg, rgba(2, 6, 12, 0.24), rgba(3, 8, 18, 0.76));
 }
 
 .game-frame.story-cinematic .lane {
-  background: rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .game-frame.story-cinematic .lane-top {
-  border-bottom-color: rgba(255, 255, 255, 0.2);
+  border-bottom-color: rgba(255, 255, 255, 0.22);
 }
 
 .game-frame.story-cinematic .obstacle {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
 
-.game-frame.story-cinematic-gameplay::before {
-  animation-duration: 1240ms;
+.game-frame.story-cinematic-cutscene::before {
+  opacity: clamp(0.34, calc(0.42 + var(--story-crescendo) * 0.32 - var(--story-hope) * 0.14), 0.9);
 }
 
-.game-frame.story-cinematic-cutscene::before {
-  animation-duration: 620ms;
+.game-frame.story-cinematic-cutscene::after {
+  opacity: clamp(0.48, calc(0.56 + var(--story-crescendo) * 0.26 - var(--story-hope) * 0.22), 0.94);
+}
+
+.game-frame.story-cinematic-gameplay::before {
+  opacity: clamp(0.14, calc(0.2 + var(--story-crescendo) * 0.24 - var(--story-hope) * 0.08), 0.6);
+}
+
+.game-frame.story-cinematic-gameplay::after {
+  opacity: clamp(0.16, calc(0.24 + var(--story-crescendo) * 0.28 - var(--story-hope) * 0.12), 0.58);
+}
+
+.game-frame.story-cinematic-gameplay .lane {
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.game-frame.story-cinematic-gameplay .lane-top {
+  border-bottom-width: 2px;
+  border-bottom-color: rgba(0, 0, 0, 0.78);
 }
 
 .game-frame.story-cinematic-postcredit::before {
-  animation: story-static 1900ms linear infinite, story-signal-flicker 2600ms ease-in-out infinite;
+  opacity: 0.24;
 }
 
 .game-frame.story-cinematic-postcredit::after {
-  animation: story-signal-flicker 3000ms ease-in-out infinite;
+  opacity: 0.28;
 }
 
 .game-frame.story-mood-wake {
   filter:
-    contrast(calc(1.06 + var(--story-crescendo) * 0.16))
-    saturate(calc(0.92 - var(--story-crescendo) * 0.08 + var(--story-hope) * 0.04))
-    brightness(calc(0.94 - var(--story-crescendo) * 0.14 + var(--story-hope) * 0.08));
-  animation: story-drift 5600ms ease-in-out infinite;
+    contrast(calc(1.08 + var(--story-crescendo) * 0.14))
+    saturate(calc(0.82 - var(--story-crescendo) * 0.06 + var(--story-hope) * 0.03))
+    brightness(calc(0.8 - var(--story-crescendo) * 0.12 + var(--story-hope) * 0.08));
 }
 
 .game-frame.story-mood-ghost {
   filter:
-    contrast(calc(1.1 + var(--story-crescendo) * 0.2))
-    saturate(calc(0.86 - var(--story-crescendo) * 0.1 + var(--story-hope) * 0.04))
-    brightness(calc(0.88 - var(--story-crescendo) * 0.18 + var(--story-hope) * 0.08));
-  animation: story-drift 4700ms ease-in-out infinite;
+    contrast(calc(1.12 + var(--story-crescendo) * 0.16))
+    saturate(calc(0.76 - var(--story-crescendo) * 0.08 + var(--story-hope) * 0.03))
+    brightness(calc(0.72 - var(--story-crescendo) * 0.12 + var(--story-hope) * 0.08));
 }
 
 .game-frame.story-mood-shatter {
   filter:
-    contrast(calc(1.16 + var(--story-crescendo) * 0.24))
-    saturate(calc(0.8 - var(--story-crescendo) * 0.12 + var(--story-hope) * 0.04))
-    brightness(calc(0.82 - var(--story-crescendo) * 0.2 + var(--story-hope) * 0.07));
-  animation: story-drift 3800ms ease-in-out infinite, story-shake 1350ms ease-in-out infinite;
+    contrast(calc(1.16 + var(--story-crescendo) * 0.18))
+    saturate(calc(0.7 - var(--story-crescendo) * 0.08 + var(--story-hope) * 0.03))
+    brightness(calc(0.66 - var(--story-crescendo) * 0.12 + var(--story-hope) * 0.07));
 }
 
 .game-frame.story-mood-collapse {
   filter:
-    contrast(calc(1.2 + var(--story-crescendo) * 0.26))
-    saturate(calc(0.72 - var(--story-crescendo) * 0.12 + var(--story-hope) * 0.04))
-    brightness(calc(0.78 - var(--story-crescendo) * 0.22 + var(--story-hope) * 0.08));
-  animation: story-drift 3000ms ease-in-out infinite, story-shake 930ms ease-in-out infinite;
+    contrast(calc(1.2 + var(--story-crescendo) * 0.2))
+    saturate(calc(0.64 - var(--story-crescendo) * 0.08 + var(--story-hope) * 0.03))
+    brightness(calc(0.6 - var(--story-crescendo) * 0.12 + var(--story-hope) * 0.08));
 }
 
 .game-frame.story-mood-last {
   filter:
-    contrast(calc(1.22 + var(--story-crescendo) * 0.3))
-    saturate(calc(0.68 - var(--story-crescendo) * 0.1 + var(--story-hope) * 0.06))
-    brightness(calc(0.72 - var(--story-crescendo) * 0.26 + var(--story-hope) * 0.24));
-  animation: story-drift 2200ms ease-in-out infinite, story-shake 640ms ease-in-out infinite;
+    contrast(calc(1.24 + var(--story-crescendo) * 0.2))
+    saturate(calc(0.58 - var(--story-crescendo) * 0.08 + var(--story-hope) * 0.06))
+    brightness(calc(0.54 - var(--story-crescendo) * 0.1 + var(--story-hope) * 0.22));
+}
+
+.game-frame.story-cinematic-gameplay.story-mood-wake {
+  filter: contrast(1.08) saturate(0.84) brightness(0.9);
+}
+
+.game-frame.story-cinematic-gameplay.story-mood-ghost {
+  filter: contrast(1.12) saturate(0.78) brightness(0.84);
+}
+
+.game-frame.story-cinematic-gameplay.story-mood-shatter {
+  filter: contrast(1.14) saturate(0.72) brightness(0.79);
+}
+
+.game-frame.story-cinematic-gameplay.story-mood-collapse {
+  filter: contrast(1.17) saturate(0.66) brightness(0.73);
+}
+
+.game-frame.story-cinematic-gameplay.story-mood-last {
+  filter: contrast(1.2) saturate(0.62) brightness(0.68);
 }
 
 .game-frame.story-resolve-witness {
-  animation-duration: 3600ms, 1200ms;
+  filter: contrast(1.16) saturate(0.7) brightness(0.67);
 }
 
 .game-frame.story-resolve-postcredit {
-  filter:
-    contrast(calc(1.08 + var(--story-crescendo) * 0.16))
-    saturate(calc(0.86 + var(--story-hope) * 0.14))
-    brightness(calc(0.84 + var(--story-hope) * 0.22));
-  animation: story-drift 5200ms ease-in-out infinite;
-}
-
-@keyframes story-static {
-  0% {
-    background-position: 0 0, 0 0;
-  }
-  100% {
-    background-position: -200% 0, -160% 0;
-  }
-}
-
-@keyframes story-shake {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  20% {
-    transform: translate3d(-0.4px, 0.8px, 0);
-  }
-  45% {
-    transform: translate3d(0.6px, -0.5px, 0);
-  }
-  72% {
-    transform: translate3d(-0.3px, -0.8px, 0);
-  }
-}
-
-@keyframes story-drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(-0.8px, 0.5px, 0);
-  }
-}
-
-@keyframes story-signal-flicker {
-  0%,
-  12%,
-  100% {
-    filter: none;
-  }
-  16% {
-    filter: brightness(1.08);
-  }
-  18% {
-    filter: brightness(0.96);
-  }
-  26% {
-    filter: brightness(1.12);
-  }
-  30% {
-    filter: none;
-  }
+  filter: contrast(1.08) saturate(0.82) brightness(0.78);
 }
 
 .panel-stack {
@@ -1398,6 +1493,7 @@ button {
     grid-template-areas:
       "title title"
       "summary summary"
+      "context context"
       "panels panels"
       "name name"
       "actions actions";
@@ -1411,10 +1507,16 @@ button {
     line-height: 0.96;
   }
 
-  #overlay-over > p:not(.save-status) {
+  #overlay-over-subtitle {
     grid-area: summary;
     margin: 0;
     font-size: 0.98rem;
+  }
+
+  #overlay-over-story-episode {
+    grid-area: context;
+    margin: 0;
+    font-size: 0.84rem;
   }
 
   .panel-stack {
@@ -1728,6 +1830,7 @@ button {
     grid-template-areas:
       "title title"
       "summary summary"
+      "context context"
       "panels panels"
       "name name"
       "actions actions";
@@ -1755,11 +1858,18 @@ button {
     line-height: 1;
   }
 
-  #overlay-over > p:not(.save-status) {
+  #overlay-over-subtitle {
     grid-area: summary;
     margin: 0;
     max-width: none;
     font-size: 0.9rem;
+  }
+
+  #overlay-over-story-episode {
+    grid-area: context;
+    margin: 0;
+    max-width: none;
+    font-size: 0.8rem;
   }
 
   .panel-stack {
